@@ -1,0 +1,14 @@
+{
+  "expo": {
+    "name": "MoneyFlow",
+    "slug": "moneyflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "moneyflow",
+    "userInterfaceStyle": "automatic",
+    "plugins": [
+      "expo-router",
+      "expo-font"
+    ]
+  }
+}
