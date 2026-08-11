@@ -1,10 +1,16 @@
-import { useCallback, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   RefreshControl,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
+
 import {
   Button,
   Card,
@@ -12,6 +18,7 @@ import {
   Icon,
   Text,
 } from "react-native-paper";
+
 import { useFocusEffect } from "expo-router";
 
 import { useAccountStore } from "../../src/store/accountStore";
@@ -20,7 +27,7 @@ import { useTransactionStore } from "../../src/store/transactionStore";
 import ExpenseModal from "../../src/features/transactions/components/ExpenseModal";
 import IncomeModal from "../../src/features/transactions/components/IncomeModal";
 
-export default function Dashboard() {
+export default function DashboardScreen() {
   const {
     accounts,
     loadAccounts,
@@ -32,6 +39,11 @@ export default function Dashboard() {
   } = useTransactionStore();
 
   const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
+
+  const [
     expenseVisible,
     setExpenseVisible,
   ] = useState(false);
@@ -41,23 +53,25 @@ export default function Dashboard() {
     setIncomeVisible,
   ] = useState(false);
 
-  const [
-    refreshing,
-    setRefreshing,
-  ] = useState(false);
-
   // ========================================
-  // LOAD
+  // LOAD DATA
   // ========================================
 
-  useFocusEffect(
-    useCallback(() => {
-      loadAccounts();
-      loadTransactions();
+  const loadData =
+    useCallback(async () => {
+      await Promise.all([
+        loadAccounts(),
+        loadTransactions(),
+      ]);
     }, [
       loadAccounts,
       loadTransactions,
-    ])
+    ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
   );
 
   // ========================================
@@ -68,58 +82,10 @@ export default function Dashboard() {
     async () => {
       setRefreshing(true);
 
-      await Promise.all([
-        loadAccounts(),
-        loadTransactions(),
-      ]);
+      await loadData();
 
       setRefreshing(false);
     };
-
-  // ========================================
-  // TOTAL BALANCE
-  // ========================================
-
-  const totalBalance =
-    accounts.reduce(
-      (total, account) =>
-        total + account.balance,
-      0
-    );
-
-  // ========================================
-  // TOTAL INCOME
-  // ========================================
-
-  const totalIncome =
-    transactions
-      .filter(
-        (transaction) =>
-          transaction.type ===
-          "income"
-      )
-      .reduce(
-        (total, transaction) =>
-          total + transaction.amount,
-        0
-      );
-
-  // ========================================
-  // TOTAL EXPENSE
-  // ========================================
-
-  const totalExpense =
-    transactions
-      .filter(
-        (transaction) =>
-          transaction.type ===
-          "expense"
-      )
-      .reduce(
-        (total, transaction) =>
-          total + transaction.amount,
-        0
-      );
 
   // ========================================
   // FORMAT MONEY
@@ -132,6 +98,164 @@ export default function Dashboard() {
       "en-IN"
     )}`;
   };
+
+  // ========================================
+  // TOTAL BALANCE
+  // ========================================
+
+  const totalBalance =
+    useMemo(() => {
+      return accounts.reduce(
+        (total, account) =>
+          total + account.balance,
+        0
+      );
+    }, [accounts]);
+
+  // ========================================
+  // CURRENT MONTH
+  // ========================================
+
+  const currentMonthTransactions =
+    useMemo(() => {
+      const now =
+        new Date();
+
+      return transactions.filter(
+        (transaction) => {
+          const date =
+            new Date(
+              transaction.date
+            );
+
+          return (
+            date.getMonth() ===
+              now.getMonth() &&
+            date.getFullYear() ===
+              now.getFullYear()
+          );
+        }
+      );
+    }, [transactions]);
+
+  // ========================================
+  // INCOME
+  // ========================================
+
+  const monthlyIncome =
+    useMemo(() => {
+      return currentMonthTransactions
+        .filter(
+          (transaction) =>
+            transaction.type ===
+            "income"
+        )
+        .reduce(
+          (total, transaction) =>
+            total +
+            transaction.amount,
+          0
+        );
+    }, [
+      currentMonthTransactions,
+    ]);
+
+  // ========================================
+  // EXPENSE
+  // ========================================
+
+  const monthlyExpense =
+    useMemo(() => {
+      return currentMonthTransactions
+        .filter(
+          (transaction) =>
+            transaction.type ===
+            "expense"
+        )
+        .reduce(
+          (total, transaction) =>
+            total +
+            transaction.amount,
+          0
+        );
+    }, [
+      currentMonthTransactions,
+    ]);
+
+  // ========================================
+  // SAVINGS
+  // ========================================
+
+  const monthlySavings =
+    monthlyIncome -
+    monthlyExpense;
+
+  // ========================================
+  // RECENT TRANSACTIONS
+  // ========================================
+
+  const recentTransactions =
+    useMemo(() => {
+      return [...transactions]
+        .sort(
+          (a, b) =>
+            new Date(
+              b.date
+            ).getTime() -
+            new Date(
+              a.date
+            ).getTime()
+        )
+        .slice(0, 5);
+    }, [transactions]);
+
+  // ========================================
+  // ACCOUNT NAME
+  // ========================================
+
+  const getAccountName = (
+    accountId: string
+  ) => {
+    return (
+      accounts.find(
+        (account) =>
+          account.id === accountId
+      )?.name ??
+      "Unknown account"
+    );
+  };
+
+  // ========================================
+  // DATE
+  // ========================================
+
+  const formatDate = (
+    dateString: string
+  ) => {
+    const date =
+      new Date(dateString);
+
+    return date.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+      }
+    );
+  };
+
+  // ========================================
+  // CURRENT MONTH NAME
+  // ========================================
+
+  const monthName =
+    new Date().toLocaleDateString(
+      "en-IN",
+      {
+        month: "long",
+        year: "numeric",
+      }
+    );
 
   // ========================================
   // UI
@@ -154,6 +278,9 @@ export default function Dashboard() {
             }
           />
         }
+        showsVerticalScrollIndicator={
+          false
+        }
       >
         {/* ================================= */}
         {/* HEADER */}
@@ -164,22 +291,32 @@ export default function Dashboard() {
         >
           <View>
             <Text
+              variant="headlineMedium"
+              style={styles.title}
+            >
+              MoneyFlow
+            </Text>
+
+            <Text
               variant="bodyMedium"
               style={
                 styles.subtitle
               }
             >
-              Good day 👋
+              {monthName}
             </Text>
+          </View>
 
-            <Text
-              variant="headlineMedium"
-              style={
-                styles.title
-              }
-            >
-              MoneyFlow
-            </Text>
+          <View
+            style={
+              styles.headerIcon
+            }
+          >
+            <Icon
+              source="wallet"
+              size={28}
+              color="#2563EB"
+            />
           </View>
         </View>
 
@@ -205,7 +342,7 @@ export default function Dashboard() {
             <Text
               variant="displaySmall"
               style={
-                styles.balance
+                styles.balanceAmount
               }
             >
               {formatMoney(
@@ -219,6 +356,7 @@ export default function Dashboard() {
                 styles.accountCount
               }
             >
+              Across{" "}
               {accounts.length}{" "}
               {accounts.length ===
               1
@@ -246,19 +384,25 @@ export default function Dashboard() {
             <Card.Content>
               <View
                 style={
-                  styles.summaryHeader
+                  styles.summaryIconRow
                 }
               >
-                <Icon
-                  source="arrow-down"
-                  size={22}
-                  color="#16A34A"
-                />
+                <View
+                  style={
+                    styles.incomeIcon
+                  }
+                >
+                  <Icon
+                    source="arrow-down"
+                    size={18}
+                    color="#16A34A"
+                  />
+                </View>
 
                 <Text
                   variant="bodyMedium"
                   style={
-                    styles.summaryLabel
+                    styles.label
                   }
                 >
                   Income
@@ -268,11 +412,11 @@ export default function Dashboard() {
               <Text
                 variant="titleLarge"
                 style={
-                  styles.incomeText
+                  styles.income
                 }
               >
                 +{formatMoney(
-                  totalIncome
+                  monthlyIncome
                 )}
               </Text>
             </Card.Content>
@@ -287,19 +431,25 @@ export default function Dashboard() {
             <Card.Content>
               <View
                 style={
-                  styles.summaryHeader
+                  styles.summaryIconRow
                 }
               >
-                <Icon
-                  source="arrow-up"
-                  size={22}
-                  color="#D32F2F"
-                />
+                <View
+                  style={
+                    styles.expenseIcon
+                  }
+                >
+                  <Icon
+                    source="arrow-up"
+                    size={18}
+                    color="#D32F2F"
+                  />
+                </View>
 
                 <Text
                   variant="bodyMedium"
                   style={
-                    styles.summaryLabel
+                    styles.label
                   }
                 >
                   Expense
@@ -309,16 +459,109 @@ export default function Dashboard() {
               <Text
                 variant="titleLarge"
                 style={
-                  styles.expenseText
+                  styles.expense
                 }
               >
                 -{formatMoney(
-                  totalExpense
+                  monthlyExpense
                 )}
               </Text>
             </Card.Content>
           </Card>
         </View>
+
+        {/* ================================= */}
+        {/* SAVINGS */}
+        {/* ================================= */}
+
+        <Card
+          style={
+            styles.savingsCard
+          }
+        >
+          <Card.Content>
+            <View
+              style={
+                styles.savingsHeader
+              }
+            >
+              <View>
+                <Text
+                  variant="bodyMedium"
+                  style={
+                    styles.label
+                  }
+                >
+                  Monthly Savings
+                </Text>
+
+                <Text
+                  variant="headlineSmall"
+                  style={
+                    monthlySavings >=
+                    0
+                      ? styles.income
+                      : styles.expense
+                  }
+                >
+                  {monthlySavings >=
+                  0
+                    ? "+"
+                    : "-"}
+                  {formatMoney(
+                    Math.abs(
+                      monthlySavings
+                    )
+                  )}
+                </Text>
+              </View>
+
+              <Icon
+                source="piggy-bank-outline"
+                size={34}
+                color="#2563EB"
+              />
+            </View>
+
+            {monthlyIncome >
+              0 && (
+              <View
+                style={
+                  styles.savingsProgress
+                }
+              >
+                <View
+                  style={
+                    styles.progressHeader
+                  }
+                >
+                  <Text
+                    variant="bodySmall"
+                    style={
+                      styles.label
+                    }
+                  >
+                    Savings rate
+                  </Text>
+
+                  <Text
+                    variant="bodySmall"
+                    style={
+                      styles.bold
+                    }
+                  >
+                    {Math.round(
+                      (monthlySavings /
+                        monthlyIncome) *
+                        100
+                    )}
+                    %
+                  </Text>
+                </View>
+              </View>
+            )}
+          </Card.Content>
+        </Card>
 
         {/* ================================= */}
         {/* QUICK ACTIONS */}
@@ -330,7 +573,7 @@ export default function Dashboard() {
             styles.sectionTitle
           }
         >
-          Quick Add
+          Quick Actions
         </Text>
 
         <View
@@ -341,33 +584,33 @@ export default function Dashboard() {
           <Button
             mode="contained"
             icon="arrow-up"
-            buttonColor="#D32F2F"
             style={
               styles.actionButton
             }
+            buttonColor="#D32F2F"
             onPress={() =>
               setExpenseVisible(
                 true
               )
             }
           >
-            Expense
+            Add Expense
           </Button>
 
           <Button
             mode="contained"
             icon="arrow-down"
-            buttonColor="#16A34A"
             style={
               styles.actionButton
             }
+            buttonColor="#16A34A"
             onPress={() =>
               setIncomeVisible(
                 true
               )
             }
           >
-            Income
+            Add Income
           </Button>
         </View>
 
@@ -383,115 +626,134 @@ export default function Dashboard() {
           <Text
             variant="titleMedium"
             style={
-              styles.sectionTitle
+              styles.sectionTitleNoMargin
             }
           >
-            My Accounts
+            Accounts
           </Text>
 
           <Text
             variant="bodySmall"
             style={
-              styles.viewAll
+              styles.secondaryText
             }
           >
-            {accounts.length} total
+            {accounts.length}
           </Text>
         </View>
 
-        {accounts.length ===
-        0 ? (
-          <Card
+        <Card
+          style={styles.card}
+        >
+          <Card.Content
             style={
-              styles.emptyCard
+              styles.accountContent
             }
           >
-            <Card.Content>
-              <Text
-                variant="bodyMedium"
+            {accounts.length ===
+            0 ? (
+              <View
                 style={
-                  styles.emptyText
+                  styles.emptySmall
                 }
               >
-                No accounts added
-                yet.
-              </Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          accounts.map(
-            (account) => (
-              <Card
-                key={account.id}
-                style={
-                  styles.accountCard
-                }
-              >
-                <Card.Content>
+                <Icon
+                  source="wallet-outline"
+                  size={32}
+                  color="#999"
+                />
+
+                <Text
+                  style={
+                    styles.secondaryText
+                  }
+                >
+                  No accounts yet
+                </Text>
+              </View>
+            ) : (
+              accounts.map(
+                (
+                  account,
+                  index
+                ) => (
                   <View
-                    style={
-                      styles.accountRow
+                    key={
+                      account.id
                     }
                   >
                     <View
                       style={
-                        styles.accountLeft
+                        styles.accountRow
                       }
                     >
                       <View
-                        style={[
-                          styles.accountIcon,
-                          {
-                            backgroundColor:
-                              account.color,
-                          },
-                        ]}
+                        style={
+                          styles.accountLeft
+                        }
                       >
-                        <Icon
-                          source="wallet"
-                          size={22}
-                          color="white"
+                        <View
+                          style={[
+                            styles.accountDot,
+                            {
+                              backgroundColor:
+                                account.color,
+                            },
+                          ]}
                         />
+
+                        <View>
+                          <Text
+                            variant="bodyLarge"
+                            style={
+                              styles.accountName
+                            }
+                          >
+                            {
+                              account.name
+                            }
+                          </Text>
+
+                          <Text
+                            variant="bodySmall"
+                            style={
+                              styles.secondaryText
+                            }
+                          >
+                            {
+                              account.type
+                            }
+                          </Text>
+                        </View>
                       </View>
 
-                      <View>
-                        <Text
-                          variant="titleMedium"
-                        >
-                          {
-                            account.name
-                          }
-                        </Text>
-
-                        <Text
-                          variant="bodySmall"
-                          style={
-                            styles.accountType
-                          }
-                        >
-                          {
-                            account.type
-                          }
-                        </Text>
-                      </View>
+                      <Text
+                        variant="titleMedium"
+                        style={
+                          styles.bold
+                        }
+                      >
+                        {formatMoney(
+                          account.balance
+                        )}
+                      </Text>
                     </View>
 
-                    <Text
-                      variant="titleMedium"
-                      style={
-                        styles.accountBalance
-                      }
-                    >
-                      {formatMoney(
-                        account.balance
-                      )}
-                    </Text>
+                    {index <
+                      accounts.length -
+                        1 && (
+                      <Divider
+                        style={
+                          styles.divider
+                        }
+                      />
+                    )}
                   </View>
-                </Card.Content>
-              </Card>
-            )
-          )
-        )}
+                )
+              )
+            )}
+          </Card.Content>
+        </Card>
 
         {/* ================================= */}
         {/* RECENT TRANSACTIONS */}
@@ -505,7 +767,7 @@ export default function Dashboard() {
           <Text
             variant="titleMedium"
             style={
-              styles.sectionTitle
+              styles.sectionTitleNoMargin
             }
           >
             Recent Transactions
@@ -514,152 +776,181 @@ export default function Dashboard() {
           <Text
             variant="bodySmall"
             style={
-              styles.viewAll
+              styles.secondaryText
             }
           >
-            {transactions.length}{" "}
-            total
+            Latest 5
           </Text>
         </View>
 
-        {transactions.length ===
-        0 ? (
-          <Card
+        <Card
+          style={styles.card}
+        >
+          <Card.Content
             style={
-              styles.emptyCard
+              styles.transactionContent
             }
           >
-            <Card.Content>
-              <Text
+            {recentTransactions.length ===
+            0 ? (
+              <View
                 style={
-                  styles.emptyText
+                  styles.emptySmall
                 }
               >
-                No transactions yet.
-              </Text>
-            </Card.Content>
-          </Card>
-        ) : (
-          transactions
-            .slice()
-            .sort(
-              (a, b) =>
-                new Date(
-                  b.date
-                ).getTime() -
-                new Date(
-                  a.date
-                ).getTime()
-            )
-            .slice(0, 5)
-            .map(
-              (transaction) => {
-                const isExpense =
-                  transaction.type ===
-                  "expense";
+                <Icon
+                  source="receipt-text-outline"
+                  size={32}
+                  color="#999"
+                />
 
-                const account =
-                  accounts.find(
-                    (item) =>
-                      item.id ===
-                      transaction.accountId
-                  );
+                <Text
+                  style={
+                    styles.secondaryText
+                  }
+                >
+                  No transactions yet
+                </Text>
+              </View>
+            ) : (
+              recentTransactions.map(
+                (
+                  transaction,
+                  index
+                ) => {
+                  const isExpense =
+                    transaction.type ===
+                    "expense";
 
-                return (
-                  <View
-                    key={
-                      transaction.id
-                    }
-                  >
+                  return (
                     <View
-                      style={
-                        styles.transactionRow
+                      key={
+                        transaction.id
                       }
                     >
                       <View
                         style={
-                          styles.transactionLeft
+                          styles.transactionRow
                         }
                       >
                         <View
-                          style={[
-                            styles.transactionIcon,
-                            {
-                              backgroundColor:
-                                isExpense
-                                  ? "#FEE2E2"
-                                  : "#DCFCE7",
-                            },
-                          ]}
+                          style={
+                            styles.transactionLeft
+                          }
                         >
-                          <Icon
-                            source={
-                              isExpense
-                                ? "arrow-up"
-                                : "arrow-down"
+                          <View
+                            style={[
+                              styles.transactionIcon,
+                              {
+                                backgroundColor:
+                                  isExpense
+                                    ? "#FEE2E2"
+                                    : "#DCFCE7",
+                              },
+                            ]}
+                          >
+                            <Icon
+                              source={
+                                isExpense
+                                  ? "arrow-up"
+                                  : "arrow-down"
+                              }
+                              size={18}
+                              color={
+                                isExpense
+                                  ? "#D32F2F"
+                                  : "#16A34A"
+                              }
+                            />
+                          </View>
+
+                          <View
+                            style={
+                              styles.transactionInfo
                             }
-                            size={20}
-                            color={
-                              isExpense
-                                ? "#D32F2F"
-                                : "#16A34A"
-                            }
-                          />
+                          >
+                            <Text
+                              variant="bodyLarge"
+                              style={
+                                styles.bold
+                              }
+                              numberOfLines={
+                                1
+                              }
+                            >
+                              {
+                                transaction.details
+                              }
+                            </Text>
+
+                            <Text
+                              variant="bodySmall"
+                              style={
+                                styles.secondaryText
+                              }
+                            >
+                              {getAccountName(
+                                transaction.accountId
+                              )}
+                            </Text>
+                          </View>
                         </View>
 
                         <View
                           style={
-                            styles.transactionInfo
+                            styles.transactionRight
                           }
                         >
                           <Text
                             variant="titleSmall"
-                          >
-                            {
-                              transaction.details
+                            style={
+                              isExpense
+                                ? styles.expense
+                                : styles.income
                             }
+                          >
+                            {isExpense
+                              ? "-"
+                              : "+"}
+                            {formatMoney(
+                              transaction.amount
+                            )}
                           </Text>
 
                           <Text
                             variant="bodySmall"
                             style={
-                              styles.secondary
+                              styles.secondaryText
                             }
                           >
-                            {account?.name ??
-                              "Unknown account"}
+                            {formatDate(
+                              transaction.date
+                            )}
                           </Text>
                         </View>
                       </View>
 
-                      <Text
-                        variant="titleSmall"
-                        style={
-                          isExpense
-                            ? styles.expenseText
-                            : styles.incomeText
-                        }
-                      >
-                        {isExpense
-                          ? "-"
-                          : "+"}
-                        {formatMoney(
-                          transaction.amount
-                        )}
-                      </Text>
+                      {index <
+                        recentTransactions.length -
+                          1 && (
+                        <Divider
+                          style={
+                            styles.divider
+                          }
+                        />
+                      )}
                     </View>
-
-                    <Divider />
-                  </View>
-                );
-              }
-            )
-        )}
+                  );
+                }
+              )
+            )}
+          </Card.Content>
+        </Card>
       </ScrollView>
 
-      {/* ================================== */}
+      {/* ================================= */}
       {/* EXPENSE MODAL */}
-      {/* ================================== */}
+      {/* ================================= */}
 
       <ExpenseModal
         visible={
@@ -672,9 +963,9 @@ export default function Dashboard() {
         }
       />
 
-      {/* ================================== */}
+      {/* ================================= */}
       {/* INCOME MODAL */}
-      {/* ================================== */}
+      {/* ================================= */}
 
       <IncomeModal
         visible={
@@ -706,35 +997,49 @@ const styles =
     },
 
     header: {
-      marginBottom: 20,
-    },
-
-    subtitle: {
-      color: "#777",
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+      marginBottom: 18,
     },
 
     title: {
       fontWeight: "700",
-      marginTop: 2,
+    },
+
+    subtitle: {
+      color: "#777",
+      marginTop: 3,
+    },
+
+    headerIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: "#EFF6FF",
+      alignItems: "center",
+      justifyContent:
+        "center",
     },
 
     balanceCard: {
-      borderRadius: 20,
-      marginBottom: 14,
+      borderRadius: 18,
+      marginBottom: 12,
     },
 
     balanceLabel: {
       color: "#777",
     },
 
-    balance: {
+    balanceAmount: {
       fontWeight: "700",
-      marginTop: 4,
+      marginTop: 5,
     },
 
     accountCount: {
-      color: "#777",
-      marginTop: 4,
+      color: "#999",
+      marginTop: 5,
     },
 
     summaryRow: {
@@ -744,7 +1049,7 @@ const styles =
 
     summaryCard: {
       flex: 1,
-      borderRadius: 16,
+      borderRadius: 14,
     },
 
     incomeCard: {
@@ -759,26 +1064,84 @@ const styles =
         "#D32F2F",
     },
 
-    summaryHeader: {
+    summaryIconRow: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 6,
+      gap: 7,
     },
 
-    summaryLabel: {
+    incomeIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor:
+        "#DCFCE7",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    expenseIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor:
+        "#FEE2E2",
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    label: {
       color: "#777",
     },
 
-    incomeText: {
+    income: {
       color: "#16A34A",
       fontWeight: "700",
       marginTop: 6,
     },
 
-    expenseText: {
+    expense: {
       color: "#D32F2F",
       fontWeight: "700",
       marginTop: 6,
+    },
+
+    savingsCard: {
+      borderRadius: 14,
+      marginTop: 12,
+      marginBottom: 22,
+    },
+
+    savingsHeader: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+    },
+
+    savingsProgress: {
+      marginTop: 12,
+    },
+
+    progressHeader: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+    },
+
+    bold: {
+      fontWeight: "700",
+    },
+
+    sectionTitle: {
+      fontWeight: "600",
+      marginBottom: 10,
+    },
+
+    sectionTitleNoMargin: {
+      fontWeight: "600",
     },
 
     sectionHeader: {
@@ -786,21 +1149,13 @@ const styles =
       justifyContent:
         "space-between",
       alignItems: "center",
-      marginTop: 24,
       marginBottom: 10,
-    },
-
-    sectionTitle: {
-      fontWeight: "600",
-    },
-
-    viewAll: {
-      color: "#777",
     },
 
     actionRow: {
       flexDirection: "row",
-      gap: 12,
+      gap: 10,
+      marginBottom: 22,
     },
 
     actionButton: {
@@ -808,9 +1163,13 @@ const styles =
       borderRadius: 10,
     },
 
-    accountCard: {
+    card: {
       borderRadius: 14,
-      marginBottom: 10,
+      marginBottom: 22,
+    },
+
+    accountContent: {
+      paddingVertical: 4,
     },
 
     accountRow: {
@@ -818,40 +1177,36 @@ const styles =
       justifyContent:
         "space-between",
       alignItems: "center",
+      paddingVertical: 10,
     },
 
     accountLeft: {
       flexDirection: "row",
       alignItems: "center",
-      gap: 12,
+      flex: 1,
     },
 
-    accountIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 22,
-      alignItems: "center",
-      justifyContent:
-        "center",
+    accountDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+      marginRight: 10,
     },
 
-    accountType: {
+    accountName: {
+      fontWeight: "600",
+    },
+
+    secondaryText: {
       color: "#777",
-      marginTop: 2,
     },
 
-    accountBalance: {
-      fontWeight: "700",
+    divider: {
+      marginVertical: 4,
     },
 
-    emptyCard: {
-      borderRadius: 14,
-    },
-
-    emptyText: {
-      color: "#777",
-      textAlign: "center",
-      paddingVertical: 10,
+    transactionContent: {
+      paddingVertical: 4,
     },
 
     transactionRow: {
@@ -859,31 +1214,39 @@ const styles =
       justifyContent:
         "space-between",
       alignItems: "center",
-      paddingVertical: 12,
+      paddingVertical: 10,
     },
 
     transactionLeft: {
       flexDirection: "row",
       alignItems: "center",
       flex: 1,
+      minWidth: 0,
     },
 
     transactionIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: 19,
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       alignItems: "center",
       justifyContent:
         "center",
+      marginRight: 10,
     },
 
     transactionInfo: {
-      marginLeft: 10,
       flex: 1,
+      minWidth: 0,
     },
 
-    secondary: {
-      color: "#777",
-      marginTop: 2,
+    transactionRight: {
+      alignItems: "flex-end",
+      marginLeft: 10,
+    },
+
+    emptySmall: {
+      alignItems: "center",
+      paddingVertical: 22,
+      gap: 8,
     },
   });

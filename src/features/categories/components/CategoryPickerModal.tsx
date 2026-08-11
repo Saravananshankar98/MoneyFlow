@@ -1,37 +1,60 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+
 import {
-  FlatList,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
+
 import {
   Button,
   Dialog,
-  Divider,
   Icon,
-  Modal,
   Portal,
   Text,
   TextInput,
-  TouchableRipple,
 } from "react-native-paper";
-import { useCategoryStore } from "../../../store/categoryStore";
-import { Category } from "../types/category";
+
+import {
+  useCategoryStore,
+} from "../../../store/categoryStore";
 
 interface Props {
-  visible: boolean;
   value: string;
-  type?: "expense" | "income";
-  onSelect: (category: Category | null) => void;
-  onDismiss: () => void;
+  onChange: (value: string) => void;
+  error?: string;
+  type?: "expense" | "income" | "both";
 }
 
-export default function CategoryPickerModal({
-  visible,
+const DEFAULT_ICONS = [
+  "food",
+  "cart",
+  "bus",
+  "home",
+  "medical-bag",
+  "movie",
+  "school",
+  "coffee",
+  "cash",
+  "wallet",
+];
+
+const DEFAULT_COLORS = [
+  "#2563EB",
+  "#16A34A",
+  "#D32F2F",
+  "#F59E0B",
+  "#7C3AED",
+  "#0891B2",
+  "#DB2777",
+  "#64748B",
+];
+
+export default function CategoryPicker({
   value,
+  onChange,
+  error,
   type = "expense",
-  onSelect,
-  onDismiss,
 }: Props) {
   const {
     categories,
@@ -39,343 +62,617 @@ export default function CategoryPickerModal({
     addCategory,
   } = useCategoryStore();
 
-  const [addVisible, setAddVisible] =
+  const [open, setOpen] =
     useState(false);
 
-  const [categoryName, setCategoryName] =
+  const [addOpen, setAddOpen] =
+    useState(false);
+
+  const [name, setName] =
     useState("");
+
+  const [selectedIcon, setSelectedIcon] =
+    useState(DEFAULT_ICONS[0]);
+
+  const [selectedColor, setSelectedColor] =
+    useState(DEFAULT_COLORS[0]);
 
   const [saving, setSaving] =
     useState(false);
 
+  const [localError, setLocalError] =
+    useState("");
+
   useEffect(() => {
-    if (visible) {
-      loadCategories();
-    }
-  }, [visible, loadCategories]);
+    loadCategories();
+  }, [loadCategories]);
 
   const filteredCategories =
-    categories.filter(
-      (category) =>
-        category.type === type ||
+    categories.filter((category) => {
+      if (
         category.type === "both"
+      ) {
+        return true;
+      }
+
+      return (
+        category.type === type
+      );
+    });
+
+  const selectedCategory =
+    categories.find(
+      (category) =>
+        category.id === value
     );
 
-  const handleAddCategory = async () => {
-    const name =
-      categoryName.trim();
+  const handleAddCategory =
+    async () => {
+      const trimmedName =
+        name.trim();
 
-    if (!name) {
-      return;
-    }
+      if (!trimmedName) {
+        setLocalError(
+          "Category name is required"
+        );
+        return;
+      }
 
-    const alreadyExists =
-      categories.some(
-        (category) =>
-          category.name.toLowerCase() ===
-          name.toLowerCase()
+      if (trimmedName.length < 2) {
+        setLocalError(
+          "Category name must be at least 2 characters"
+        );
+        return;
+      }
+
+      setLocalError("");
+      setSaving(true);
+
+      const now =
+        new Date().toISOString();
+
+      const id =
+        `${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 8)}`;
+
+      const result =
+        await addCategory({
+          id,
+          name: trimmedName,
+          icon: selectedIcon,
+          color: selectedColor,
+          type,
+          createdAt: now,
+          updatedAt: now,
+        });
+
+      setSaving(false);
+
+      if (!result.success) {
+        setLocalError(
+          result.error ??
+            "Unable to add category"
+        );
+        return;
+      }
+
+      /*
+       * Select newly created category
+       */
+      onChange(id);
+
+      /*
+       * Close dialogs
+       */
+      setAddOpen(false);
+      setOpen(false);
+
+      /*
+       * Reset form
+       */
+      setName("");
+      setSelectedIcon(
+        DEFAULT_ICONS[0]
       );
-
-    if (alreadyExists) {
-      return;
-    }
-
-    setSaving(true);
-
-    const now =
-      new Date().toISOString();
-
-    const newCategory: Category = {
-      id: Date.now().toString(),
-      name,
-      icon:
-        type === "expense"
-          ? "tag"
-          : "cash",
-      color:
-        type === "expense"
-          ? "#2563EB"
-          : "#16A34A",
-      type,
-      createdAt: now,
-      updatedAt: now,
+      setSelectedColor(
+        DEFAULT_COLORS[0]
+      );
     };
 
-    await addCategory(
-      newCategory
-    );
-
-    setSaving(false);
-    setCategoryName("");
-    setAddVisible(false);
-
-    // Automatically select newly created category
-    onSelect(newCategory);
-
-    onDismiss();
-  };
-
-  const handleSelect = (
-    category: Category | null
-  ) => {
-    onSelect(category);
-    onDismiss();
-  };
-
   return (
-    <Portal>
-      {/* CATEGORY PICKER */}
+    <>
+      {/* ================================= */}
+      {/* SELECT FIELD */}
+      {/* ================================= */}
 
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss}
-        contentContainerStyle={
-          styles.modal
-        }
-      >
-        <View style={styles.header}>
-          <Text
-            variant="headlineSmall"
-            style={styles.title}
-          >
-            Choose Category
-          </Text>
-
-          <Text
-            variant="bodyMedium"
-            style={styles.subtitle}
-          >
-            Select a category
-          </Text>
-        </View>
-
-        <FlatList
-          data={filteredCategories}
-          keyExtractor={(item) =>
-            item.id
+      <View>
+        <Button
+          mode="outlined"
+          onPress={() => {
+            setOpen(true);
+          }}
+          contentStyle={
+            styles.buttonContent
           }
-          ItemSeparatorComponent={
-            Divider
-          }
-          ListHeaderComponent={
-            <TouchableRipple
-              onPress={() =>
-                handleSelect(null)
-              }
-              style={[
-                styles.item,
-                !value &&
-                  styles.selectedItem,
-              ]}
-            >
-              <View
-                style={styles.row}
-              >
+          style={styles.button}
+        >
+          <View
+            style={
+              styles.selectedContent
+            }
+          >
+            {selectedCategory ? (
+              <>
                 <View
-                  style={
-                    styles.radio
-                  }
+                  style={[
+                    styles.iconCircle,
+                    {
+                      backgroundColor:
+                        selectedCategory.color ??
+                        "#2563EB",
+                    },
+                  ]}
                 >
-                  {!value && (
-                    <View
-                      style={
-                        styles.radioInner
-                      }
-                    />
-                  )}
+                  <Icon
+                    source={
+                      selectedCategory.icon ??
+                      "tag"
+                    }
+                    size={18}
+                    color="#FFFFFF"
+                  />
                 </View>
 
                 <Text
-                  variant="titleMedium"
+                  variant="bodyLarge"
                 >
-                  No Category
+                  {
+                    selectedCategory.name
+                  }
                 </Text>
-              </View>
-            </TouchableRipple>
-          }
-          renderItem={({
-            item,
-          }) => {
-            const selected =
-              value === item.id;
+              </>
+            ) : (
+              <>
+                <Icon
+                  source="tag-outline"
+                  size={20}
+                  color="#777"
+                />
 
-            return (
-              <TouchableRipple
-                onPress={() =>
-                  handleSelect(
-                    item
-                  )
+                <Text
+                  style={
+                    styles.placeholder
+                  }
+                >
+                  Select category
+                </Text>
+              </>
+            )}
+          </View>
+        </Button>
+
+        {error && (
+          <Text
+            style={
+              styles.errorText
+            }
+          >
+            {error}
+          </Text>
+        )}
+      </View>
+
+      {/* ================================= */}
+      {/* CATEGORY LIST */}
+      {/* ================================= */}
+
+      <Portal>
+        <Dialog
+          visible={open}
+          onDismiss={() =>
+            setOpen(false)
+          }
+          style={
+            styles.dialog
+          }
+        >
+          <Dialog.Title>
+            Select Category
+          </Dialog.Title>
+
+          <Dialog.ScrollArea>
+            <ScrollView
+              contentContainerStyle={
+                styles.list
+              }
+            >
+              {filteredCategories.map(
+                (category) => {
+                  const selected =
+                    category.id ===
+                    value;
+
+                  return (
+                    <Button
+                      key={
+                        category.id
+                      }
+                      mode={
+                        selected
+                          ? "contained"
+                          : "outlined"
+                      }
+                      onPress={() => {
+                        onChange(
+                          category.id
+                        );
+
+                        setOpen(
+                          false
+                        );
+                      }}
+                      style={
+                        styles.categoryButton
+                      }
+                      contentStyle={
+                        styles.categoryButtonContent
+                      }
+                    >
+                      <View
+                        style={
+                          styles.categoryRow
+                        }
+                      >
+                        <View
+                          style={[
+                            styles.iconCircle,
+                            {
+                              backgroundColor:
+                                category.color ??
+                                "#2563EB",
+                            },
+                          ]}
+                        >
+                          <Icon
+                            source={
+                              category.icon ??
+                              "tag"
+                            }
+                            size={18}
+                            color="#FFFFFF"
+                          />
+                        </View>
+
+                        <Text>
+                          {
+                            category.name
+                          }
+                        </Text>
+                      </View>
+                    </Button>
+                  );
                 }
+              )}
+
+              {/* ================================= */}
+              {/* ADD NEW */}
+              {/* ================================= */}
+
+              <Button
+                mode="outlined"
+                icon="plus"
+                onPress={() => {
+                  setLocalError("");
+                  setName("");
+                  setAddOpen(
+                    true
+                  );
+                }}
                 style={[
-                  styles.item,
-                  selected &&
-                    styles.selectedItem,
+                  styles.categoryButton,
+                  styles.addButton,
                 ]}
               >
-                <View
-                  style={styles.row}
-                >
-                  <View
-                    style={[
-                      styles.icon,
-                      {
-                        backgroundColor:
-                          item.color,
-                      },
-                    ]}
-                  >
-                    <Icon
-                      source={
-                        item.icon
-                      }
-                      size={20}
-                      color="white"
-                    />
-                  </View>
+                Add New Category
+              </Button>
+            </ScrollView>
+          </Dialog.ScrollArea>
 
-                  <Text
-                    variant="titleMedium"
-                  >
-                    {item.name}
-                  </Text>
-                </View>
-              </TouchableRipple>
-            );
+          <Dialog.Actions>
+            <Button
+              onPress={() =>
+                setOpen(false)
+              }
+            >
+              Cancel
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      {/* ================================= */}
+      {/* ADD CATEGORY */}
+      {/* ================================= */}
+
+      <Portal>
+        <Dialog
+          visible={addOpen}
+          onDismiss={() => {
+            if (!saving) {
+              setAddOpen(false);
+            }
           }}
-        />
-
-        {/* ADD NEW */}
-
-        <Button
-          mode="contained"
-          icon="plus"
-          onPress={() =>
-            setAddVisible(true)
+          style={
+            styles.dialog
           }
-          style={styles.addButton}
         >
-          Add New
-        </Button>
-      </Modal>
+          <Dialog.Title>
+            Add New Category
+          </Dialog.Title>
 
-      {/* ADD NEW CATEGORY */}
+          <Dialog.Content>
+            <TextInput
+              mode="outlined"
+              label="Category name"
+              placeholder="Food"
+              value={name}
+              onChangeText={(text) => {
+                setName(text);
+                setLocalError("");
+              }}
+              autoFocus
+            />
 
-      <Dialog
-        visible={addVisible}
-        onDismiss={() =>
-          setAddVisible(false)
-        }
-      >
-        <Dialog.Title>
-          Add New Category
-        </Dialog.Title>
+            {/* ================================= */}
+            {/* ICON */}
+            {/* ================================= */}
 
-        <Dialog.Content>
-          <TextInput
-            mode="outlined"
-            label="Category Name"
-            placeholder="Example: Grocery"
-            value={categoryName}
-            onChangeText={
-              setCategoryName
+            <Text
+              variant="labelLarge"
+              style={
+                styles.optionTitle
+              }
+            >
+              Icon
+            </Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={
+                false
             }
-            autoFocus
-          />
-        </Dialog.Content>
+              contentContainerStyle={
+                styles.optionsRow
+              }
+            >
+              {DEFAULT_ICONS.map(
+                (icon) => {
+                  const selected =
+                    icon ===
+                    selectedIcon;
 
-        <Dialog.Actions>
-          <Button
-            onPress={() => {
-              setCategoryName("");
-              setAddVisible(false);
-            }}
-          >
-            Cancel
-          </Button>
+                  return (
+                    <Button
+                      key={icon}
+                      mode={
+                        selected
+                          ? "contained"
+                          : "outlined"
+                      }
+                      onPress={() =>
+                        setSelectedIcon(
+                          icon
+                        )
+                      }
+                      compact
+                      style={
+                        styles.iconButton
+                      }
+                    >
+                      <Icon
+                        source={icon}
+                        size={20}
+                      />
+                    </Button>
+                  );
+                }
+              )}
+            </ScrollView>
 
-          <Button
-            mode="contained"
-            disabled={
-              !categoryName.trim() ||
-              saving
-            }
-            loading={saving}
-            onPress={
-              handleAddCategory
-            }
-          >
-            Save
-          </Button>
-        </Dialog.Actions>
-      </Dialog>
-    </Portal>
+            {/* ================================= */}
+            {/* COLOR */}
+            {/* ================================= */}
+
+            <Text
+              variant="labelLarge"
+              style={
+                styles.optionTitle
+              }
+            >
+              Color
+            </Text>
+
+            <View
+              style={
+                styles.colorsRow
+              }
+            >
+              {DEFAULT_COLORS.map(
+                (color) => {
+                  const selected =
+                    color ===
+                    selectedColor;
+
+                  return (
+                    <Button
+                      key={color}
+                      onPress={() =>
+                        setSelectedColor(
+                          color
+                        )
+                      }
+                      compact
+                      style={
+                        styles.colorButton
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.colorCircle,
+                          {
+                            backgroundColor:
+                              color,
+                            borderWidth:
+                              selected
+                                ? 3
+                                : 0,
+                            borderColor:
+                              "#000000",
+                          },
+                        ]}
+                      />
+                    </Button>
+                  );
+                }
+              )}
+            </View>
+
+            {localError && (
+              <Text
+                style={
+                  styles.errorText
+                }
+              >
+                {localError}
+              </Text>
+            )}
+          </Dialog.Content>
+
+          <Dialog.Actions>
+            <Button
+              disabled={saving}
+              onPress={() =>
+                setAddOpen(false)
+              }
+            >
+              Cancel
+            </Button>
+
+            <Button
+              mode="contained"
+              loading={saving}
+              disabled={saving}
+              onPress={
+                handleAddCategory
+              }
+            >
+              Save
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </>
   );
 }
 
-const styles = StyleSheet.create({
-  modal: {
-    backgroundColor: "white",
-    margin: 20,
-    borderRadius: 20,
-    maxHeight: "85%",
-    overflow: "hidden",
-  },
+// ========================================
+// STYLES
+// ========================================
 
-  header: {
-    padding: 20,
-    paddingBottom: 12,
-  },
+const styles =
+  StyleSheet.create({
+    button: {
+      borderRadius: 8,
+    },
 
-  title: {
-    fontWeight: "700",
-  },
+    buttonContent: {
+      height: 52,
+      justifyContent:
+        "flex-start",
+    },
 
-  subtitle: {
-    color: "#777",
-    marginTop: 4,
-  },
+    selectedContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
 
-  item: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
+    placeholder: {
+      color: "#777",
+    },
 
-  selectedItem: {
-    backgroundColor: "#EEF2FF",
-  },
+    iconCircle: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
 
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
+    errorText: {
+      color: "#D32F2F",
+      marginTop: 5,
+      marginLeft: 4,
+    },
 
-  radio: {
-    width: 24,
-    height: 24,
-    borderWidth: 2,
-    borderColor: "#777",
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    dialog: {
+      borderRadius: 18,
+    },
 
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#2563EB",
-  },
+    list: {
+      gap: 10,
+      paddingVertical: 8,
+    },
 
-  icon: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+    categoryButton: {
+      borderRadius: 10,
+    },
 
-  addButton: {
-    margin: 16,
-  },
-});
+    categoryButtonContent: {
+      minHeight: 48,
+      justifyContent:
+        "flex-start",
+    },
+
+    categoryRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+
+    addButton: {
+      marginTop: 6,
+    },
+
+    optionTitle: {
+      marginTop: 18,
+      marginBottom: 8,
+    },
+
+    optionsRow: {
+      gap: 8,
+      paddingBottom: 4,
+    },
+
+    iconButton: {
+      minWidth: 44,
+    },
+
+    colorsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 6,
+    },
+
+    colorButton: {
+      minWidth: 44,
+    },
+
+    colorCircle: {
+      width: 30,
+      height: 30,
+      borderRadius: 15,
+    },
+  });

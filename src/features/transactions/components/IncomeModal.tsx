@@ -1,8 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+
 import {
   Controller,
   useForm,
 } from "react-hook-form";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
@@ -17,43 +19,63 @@ import {
   Portal,
   Text,
   TextInput,
-  TouchableRipple,
 } from "react-native-paper";
 
 import { Picker } from "@react-native-picker/picker";
 
 import { useAccountStore } from "../../../store/accountStore";
-import { useCategoryStore } from "../../../store/categoryStore";
-import { useTransactionStore } from "../../../store/transactionStore";
 
-import CategoryPickerModal from "../../categories/components/CategoryPickerModal";
+import {
+  useCategoryStore,
+} from "../../../store/categoryStore";
+
+import {
+  useTransactionStore,
+} from "../../../store/transactionStore";
+
 
 import {
   incomeSchema,
   type IncomeForm,
 } from "../validation/transactionSchema";
 
-import type { Transaction } from "../types/transaction";
+import type {
+  Transaction,
+} from "../types/transaction";
+import CategoryPicker from "../../categories/components/CategoryPickerModal";
 
 interface Props {
   visible: boolean;
-  transaction?: Transaction | null;
+
+  transaction?:
+    | Transaction
+    | null;
+
   onDismiss: () => void;
 }
 
-const DEFAULT_FORM_VALUES: IncomeForm = {
-  amount: 0,
-  details: "",
-  accountId: "",
-  paymentType: "",
-  category: "",
-  notes: "",
-  date: new Date().toISOString(),
-};
+const DEFAULT_FORM_VALUES: IncomeForm =
+  {
+    amount: 0,
+
+    details: "",
+
+    accountId: "",
+
+    paymentType: "",
+
+    category: "",
+
+    notes: "",
+
+    date: new Date().toISOString(),
+  };
 
 export default function IncomeModal({
   visible,
+
   transaction,
+
   onDismiss,
 }: Props) {
   // ========================================
@@ -68,21 +90,13 @@ export default function IncomeModal({
   const {
     addTransaction,
     updateTransaction,
-  } = useTransactionStore();
+  } =
+    useTransactionStore();
 
   const {
-    categories,
     loadCategories,
-  } = useCategoryStore();
-
-  // ========================================
-  // STATE
-  // ========================================
-
-  const [
-    categoryPickerVisible,
-    setCategoryPickerVisible,
-  ] = useState(false);
+  } =
+    useCategoryStore();
 
   // ========================================
   // FORM
@@ -90,33 +104,24 @@ export default function IncomeModal({
 
   const {
     control,
+
     handleSubmit,
+
     reset,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<IncomeForm>({
-    resolver: zodResolver(
-      incomeSchema
-    ),
 
-    defaultValues:
-      DEFAULT_FORM_VALUES,
-  });
+    formState: {
+      errors,
+    },
+  } =
+    useForm<IncomeForm>({
+      resolver:
+        zodResolver(
+          incomeSchema
+        ),
 
-  // ========================================
-  // SELECTED CATEGORY
-  // ========================================
-
-  const selectedCategoryId =
-    watch("category");
-
-  const selectedCategory =
-    categories.find(
-      (category) =>
-        category.id ===
-        selectedCategoryId
-    );
+      defaultValues:
+        DEFAULT_FORM_VALUES,
+    });
 
   // ========================================
   // LOAD DATA
@@ -128,10 +133,11 @@ export default function IncomeModal({
     }
 
     loadAccounts();
+
     loadCategories();
 
     // ======================================
-    // EDIT
+    // EDIT MODE
     // ======================================
 
     if (transaction) {
@@ -165,23 +171,24 @@ export default function IncomeModal({
     }
 
     // ======================================
-    // ADD
+    // ADD MODE
     // ======================================
 
     reset({
-      amount: 0,
-      details: "",
-      accountId: "",
-      paymentType: "",
-      category: "",
-      notes: "",
-      date: new Date().toISOString(),
+      ...DEFAULT_FORM_VALUES,
+
+      date:
+        new Date().toISOString(),
     });
   }, [
     visible,
+
     transaction,
+
     reset,
+
     loadAccounts,
+
     loadCategories,
   ]);
 
@@ -213,9 +220,7 @@ export default function IncomeModal({
             data.accountId,
 
           paymentType:
-            data.paymentType as Transaction[
-              "paymentType"
-            ],
+            data.paymentType as any,
 
           category:
             data.category,
@@ -245,10 +250,6 @@ export default function IncomeModal({
         DEFAULT_FORM_VALUES
       );
 
-      setCategoryPickerVisible(
-        false
-      );
-
       onDismiss();
 
       return;
@@ -275,9 +276,7 @@ export default function IncomeModal({
           data.accountId,
 
         paymentType:
-          data.paymentType as Transaction[
-            "paymentType"
-          ],
+          data.paymentType as any,
 
         category:
           data.category,
@@ -318,10 +317,6 @@ export default function IncomeModal({
       DEFAULT_FORM_VALUES
     );
 
-    setCategoryPickerVisible(
-      false
-    );
-
     onDismiss();
   };
 
@@ -330,10 +325,6 @@ export default function IncomeModal({
   // ========================================
 
   const handleDismiss = () => {
-    setCategoryPickerVisible(
-      false
-    );
-
     reset(
       DEFAULT_FORM_VALUES
     );
@@ -346,470 +337,425 @@ export default function IncomeModal({
   // ========================================
 
   return (
-    <>
-      <Portal>
-        <Modal
-          visible={visible}
-          onDismiss={
-            handleDismiss
-          }
+    <Portal>
+      <Modal
+        visible={visible}
+        onDismiss={
+          handleDismiss
+        }
+        contentContainerStyle={
+          styles.modal
+        }
+      >
+        <ScrollView
           contentContainerStyle={
-            styles.modal
+            styles.content
+          }
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={
+            false
           }
         >
-          <ScrollView
-            contentContainerStyle={
-              styles.content
-            }
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={
-              false
-            }
+          {/* ================================= */}
+          {/* TITLE */}
+          {/* ================================= */}
+
+          <Text
+            variant="headlineSmall"
+            style={styles.title}
           >
-            {/* TITLE */}
+            {transaction
+              ? "Edit Income"
+              : "Add Income"}
+          </Text>
 
-            <Text
-              variant="headlineSmall"
-              style={styles.title}
-            >
-              {transaction
-                ? "Edit Income"
-                : "Add Income"}
-            </Text>
+          {/* ================================= */}
+          {/* AMOUNT */}
+          {/* ================================= */}
 
-            {/* ================================= */}
-            {/* AMOUNT */}
-            {/* ================================= */}
-
-            <Controller
-              control={control}
-              name="amount"
-              render={({
-                field,
-              }) => (
-                <TextInput
-                  mode="outlined"
-                  label="Amount"
-                  keyboardType="numeric"
-                  value={
-                    field.value ===
-                    0
-                      ? ""
-                      : String(
-                          field.value
-                        )
-                  }
-                  onChangeText={(
-                    value
-                  ) => {
-                    if (
-                      value ===
-                      ""
-                    ) {
-                      field.onChange(
-                        0
-                      );
-
-                      return;
-                    }
-
-                    const amount =
-                      Number(
-                        value
-                      );
-
-                    field.onChange(
-                      Number.isNaN(
-                        amount
+          <Controller
+            control={control}
+            name="amount"
+            render={({
+              field,
+            }) => (
+              <TextInput
+                mode="outlined"
+                label="Amount"
+                keyboardType="numeric"
+                value={
+                  field.value ===
+                  0
+                    ? ""
+                    : String(
+                        field.value
                       )
-                        ? 0
-                        : amount
+                }
+                onChangeText={(
+                  value
+                ) => {
+                  if (
+                    value ===
+                    ""
+                  ) {
+                    field.onChange(
+                      0
                     );
-                  }}
-                />
-              )}
-            />
 
-            {errors.amount
-              ?.message && (
-              <Text
+                    return;
+                  }
+
+                  const amount =
+                    Number(
+                      value
+                    );
+
+                  field.onChange(
+                    Number.isNaN(
+                      amount
+                    )
+                      ? 0
+                      : amount
+                  );
+                }}
+              />
+            )}
+          />
+
+          {errors.amount
+            ?.message && (
+            <Text
+              style={
+                styles.error
+              }
+            >
+              {
+                errors.amount
+                  .message
+              }
+            </Text>
+          )}
+
+          <View
+            style={
+              styles.spacing
+            }
+          />
+
+          {/* ================================= */}
+          {/* DETAILS */}
+          {/* ================================= */}
+
+          <Controller
+            control={control}
+            name="details"
+            render={({
+              field,
+            }) => (
+              <TextInput
+                mode="outlined"
+                label="Details"
+                placeholder="Salary"
+                value={
+                  field.value
+                }
+                onChangeText={
+                  field.onChange
+                }
+              />
+            )}
+          />
+
+          {errors.details
+            ?.message && (
+            <Text
+              style={
+                styles.error
+              }
+            >
+              {
+                errors.details
+                  .message
+              }
+            </Text>
+          )}
+
+          <View
+            style={
+              styles.spacing
+            }
+          />
+
+          {/* ================================= */}
+          {/* ACCOUNT */}
+          {/* ================================= */}
+
+          <Controller
+            control={control}
+            name="accountId"
+            render={({
+              field,
+            }) => (
+              <View
                 style={
-                  styles.error
+                  styles.pickerContainer
                 }
               >
-                {
-                  errors.amount
-                    .message
-                }
-              </Text>
-            )}
+                <Text
+                  style={
+                    styles.pickerLabel
+                  }
+                >
+                  Account
+                </Text>
 
-            <View
-              style={
-                styles.spacing
-              }
-            />
-
-            {/* ================================= */}
-            {/* DETAILS */}
-            {/* ================================= */}
-
-            <Controller
-              control={control}
-              name="details"
-              render={({
-                field,
-              }) => (
-                <TextInput
-                  mode="outlined"
-                  label="Details"
-                  placeholder="Salary"
-                  value={
+                <Picker
+                  selectedValue={
                     field.value
                   }
-                  onChangeText={
+                  onValueChange={
                     field.onChange
                   }
-                />
-              )}
-            />
-
-            {errors.details
-              ?.message && (
-              <Text
-                style={
-                  styles.error
-                }
-              >
-                {
-                  errors.details
-                    .message
-                }
-              </Text>
-            )}
-
-            <View
-              style={
-                styles.spacing
-              }
-            />
-
-            {/* ================================= */}
-            {/* ACCOUNT */}
-            {/* ================================= */}
-
-            <Controller
-              control={control}
-              name="accountId"
-              render={({
-                field,
-              }) => (
-                <View
-                  style={
-                    styles.pickerContainer
-                  }
                 >
-                  <Text
-                    style={
-                      styles.pickerLabel
-                    }
-                  >
-                    Account
-                  </Text>
+                  <Picker.Item
+                    label="Select account"
+                    value=""
+                  />
 
-                  <Picker
-                    selectedValue={
-                      field.value
-                    }
-                    onValueChange={
-                      field.onChange
-                    }
-                  >
-                    <Picker.Item
-                      label="Select account"
-                      value=""
-                    />
-
-                    {accounts.map(
-                      (
-                        account
-                      ) => (
-                        <Picker.Item
-                          key={
-                            account.id
-                          }
-                          label={`${account.name} - ₹${account.balance}`}
-                          value={
-                            account.id
-                          }
-                        />
-                      )
-                    )}
-                  </Picker>
-                </View>
-              )}
-            />
-
-            {errors.accountId
-              ?.message && (
-              <Text
-                style={
-                  styles.error
-                }
-              >
-                {
-                  errors.accountId
-                    .message
-                }
-              </Text>
-            )}
-
-            <View
-              style={
-                styles.spacing
-              }
-            />
-
-            {/* ================================= */}
-            {/* PAYMENT TYPE */}
-            {/* ================================= */}
-
-            <Controller
-              control={control}
-              name="paymentType"
-              render={({
-                field,
-              }) => (
-                <View
-                  style={
-                    styles.pickerContainer
-                  }
-                >
-                  <Text
-                    style={
-                      styles.pickerLabel
-                    }
-                  >
-                    Payment Type
-                  </Text>
-
-                  <Picker
-                    selectedValue={
-                      field.value
-                    }
-                    onValueChange={
-                      field.onChange
-                    }
-                  >
-                    <Picker.Item
-                      label="Select payment type"
-                      value=""
-                    />
-
-                    <Picker.Item
-                      label="Bank Transfer"
-                      value="Bank Transfer"
-                    />
-
-                    <Picker.Item
-                      label="UPI"
-                      value="UPI"
-                    />
-
-                    <Picker.Item
-                      label="Cash"
-                      value="Cash"
-                    />
-
-                    <Picker.Item
-                      label="Cheque"
-                      value="Cheque"
-                    />
-
-                    <Picker.Item
-                      label="Other"
-                      value="Other"
-                    />
-                  </Picker>
-                </View>
-              )}
-            />
-
-            {errors.paymentType
-              ?.message && (
-              <Text
-                style={
-                  styles.error
-                }
-              >
-                {
-                  errors.paymentType
-                    .message
-                }
-              </Text>
-            )}
-
-            <View
-              style={
-                styles.spacing
-              }
-            />
-
-            {/* ================================= */}
-            {/* CATEGORY */}
-            {/* ================================= */}
-
-            <Controller
-              control={control}
-              name="category"
-              render={({
-                field,
-              }) => (
-                <>
-                  <TouchableRipple
-                    onPress={() =>
-                      setCategoryPickerVisible(
-                        true
-                      )
-                    }
-                    style={
-                      styles.selectField
-                    }
-                  >
-                    <View>
-                      <Text
-                        variant="bodySmall"
-                        style={
-                          styles.label
+                  {accounts.map(
+                    (
+                      account
+                    ) => (
+                      <Picker.Item
+                        key={
+                          account.id
                         }
-                      >
-                        Category
-                      </Text>
-
-                      <Text
-                        variant="bodyLarge"
-                        style={
-                          field.value
-                            ? styles.value
-                            : styles.placeholder
+                        label={`${account.name} - ₹${account.balance.toLocaleString(
+                          "en-IN"
+                        )}`}
+                        value={
+                          account.id
                         }
-                      >
-                        {selectedCategory
-                          ?.name ||
-                          "Select category"}
-                      </Text>
-                    </View>
-                  </TouchableRipple>
-
-                  {errors.category
-                    ?.message && (
-                    <Text
-                      style={
-                        styles.error
-                      }
-                    >
-                      {
-                        errors
-                          .category
-                          .message
-                      }
-                    </Text>
+                      />
+                    )
                   )}
-                </>
-              )}
-            />
+                </Picker>
+              </View>
+            )}
+          />
 
-            <View
+          {errors.accountId
+            ?.message && (
+            <Text
               style={
-                styles.spacing
+                styles.error
               }
-            />
+            >
+              {
+                errors.accountId
+                  .message
+              }
+            </Text>
+          )}
 
-            {/* ================================= */}
-            {/* NOTES */}
-            {/* ================================= */}
+          <View
+            style={
+              styles.spacing
+            }
+          />
 
-            <Controller
-              control={control}
-              name="notes"
-              render={({
-                field,
-              }) => (
-                <TextInput
-                  mode="outlined"
-                  label="Notes"
-                  placeholder="Optional"
-                  multiline
-                  numberOfLines={3}
-                  value={
-                    field.value ??
-                    ""
+          {/* ================================= */}
+          {/* PAYMENT TYPE */}
+          {/* ================================= */}
+
+          <Controller
+            control={control}
+            name="paymentType"
+            render={({
+              field,
+            }) => (
+              <View
+                style={
+                  styles.pickerContainer
+                }
+              >
+                <Text
+                  style={
+                    styles.pickerLabel
                   }
-                  onChangeText={
+                >
+                  Payment Type
+                </Text>
+
+                <Picker
+                  selectedValue={
+                    field.value
+                  }
+                  onValueChange={
                     field.onChange
                   }
-                />
-              )}
-            />
+                >
+                  <Picker.Item
+                    label="Select payment type"
+                    value=""
+                  />
 
-            <View
+                  <Picker.Item
+                    label="Bank Transfer"
+                    value="Bank Transfer"
+                  />
+
+                  <Picker.Item
+                    label="UPI"
+                    value="UPI"
+                  />
+
+                  <Picker.Item
+                    label="Cash"
+                    value="Cash"
+                  />
+
+                  <Picker.Item
+                    label="Cheque"
+                    value="Cheque"
+                  />
+
+                  <Picker.Item
+                    label="Other"
+                    value="Other"
+                  />
+                </Picker>
+              </View>
+            )}
+          />
+
+          {errors.paymentType
+            ?.message && (
+            <Text
               style={
-                styles.buttonSpacing
+                styles.error
               }
-            />
-
-            {/* ================================= */}
-            {/* SAVE */}
-            {/* ================================= */}
-
-            <Button
-              mode="contained"
-              buttonColor="#16A34A"
-              onPress={handleSubmit(
-                onSubmit
-              )}
             >
-              {transaction
-                ? "Update Income"
-                : "Save Income"}
-            </Button>
-          </ScrollView>
-        </Modal>
-      </Portal>
+              {
+                errors.paymentType
+                  .message
+              }
+            </Text>
+          )}
 
-      {/* ================================== */}
-      {/* CATEGORY PICKER */}
-      {/* ================================== */}
-
-      <CategoryPickerModal
-        visible={
-          categoryPickerVisible
-        }
-        value={
-          selectedCategoryId
-        }
-        type="income"
-        onSelect={(
-          category
-        ) => {
-          setValue(
-            "category",
-            category?.id ?? "",
-            {
-              shouldValidate:
-                true,
-              shouldDirty:
-                true,
+          <View
+            style={
+              styles.spacing
             }
-          );
-        }}
-        onDismiss={() =>
-          setCategoryPickerVisible(
-            false
-          )
-        }
-      />
-    </>
+          />
+
+          {/* ================================= */}
+          {/* CATEGORY */}
+          {/* ================================= */}
+
+          <Text
+            variant="labelLarge"
+            style={
+              styles.fieldLabel
+            }
+          >
+            Category
+          </Text>
+
+          <Controller
+            control={control}
+            name="category"
+            render={({
+              field,
+            }) => (
+              <CategoryPicker
+                value={
+                  field.value ??
+                  ""
+                }
+                onChange={
+                  field.onChange
+                }
+                error={
+                  errors.category
+                    ?.message
+                }
+                type="income"
+              />
+            )}
+          />
+
+          <View
+            style={
+              styles.spacing
+            }
+          />
+
+          {/* ================================= */}
+          {/* NOTES */}
+          {/* ================================= */}
+
+          <Controller
+            control={control}
+            name="notes"
+            render={({
+              field,
+            }) => (
+              <TextInput
+                mode="outlined"
+                label="Notes"
+                placeholder="Optional"
+                multiline
+                numberOfLines={3}
+                value={
+                  field.value ??
+                  ""
+                }
+                onChangeText={
+                  field.onChange
+                }
+              />
+            )}
+          />
+
+          {errors.notes
+            ?.message && (
+            <Text
+              style={
+                styles.error
+              }
+            >
+              {
+                errors.notes
+                  .message
+              }
+            </Text>
+          )}
+
+          <View
+            style={
+              styles.buttonSpacing
+            }
+          />
+
+          {/* ================================= */}
+          {/* SAVE */}
+          {/* ================================= */}
+
+          <Button
+            mode="contained"
+            buttonColor="#16A34A"
+            onPress={handleSubmit(
+              onSubmit
+            )}
+          >
+            {transaction
+              ? "Update Income"
+              : "Save Income"}
+          </Button>
+        </ScrollView>
+      </Modal>
+    </Portal>
   );
 }
 
@@ -822,18 +768,23 @@ const styles =
     modal: {
       backgroundColor:
         "white",
+
       margin: 20,
+
       borderRadius: 20,
+
       maxHeight: "90%",
     },
 
     content: {
       padding: 20,
+
       paddingBottom: 30,
     },
 
     title: {
       marginBottom: 20,
+
       fontWeight: "600",
     },
 
@@ -847,43 +798,34 @@ const styles =
 
     error: {
       color: "#D32F2F",
+
       marginTop: 4,
+    },
+
+    fieldLabel: {
+      color: "#49454F",
+
+      marginBottom: 6,
     },
 
     pickerContainer: {
       borderWidth: 1,
+
       borderColor:
         "#79747E",
+
       borderRadius: 4,
+
       overflow: "hidden",
     },
 
     pickerLabel: {
       paddingHorizontal: 12,
+
       paddingTop: 8,
+
       fontSize: 12,
+
       color: "#49454F",
-    },
-
-    selectField: {
-      borderWidth: 1,
-      borderColor:
-        "#79747E",
-      borderRadius: 4,
-      paddingHorizontal: 12,
-      paddingVertical: 12,
-    },
-
-    label: {
-      color: "#49454F",
-      marginBottom: 4,
-    },
-
-    value: {
-      color: "#1C1B1F",
-    },
-
-    placeholder: {
-      color: "#777",
     },
   });

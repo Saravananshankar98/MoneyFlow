@@ -5,8 +5,8 @@ import {
 } from "react";
 
 import {
-  FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   View,
 } from "react-native";
@@ -14,100 +14,65 @@ import {
 import {
   Button,
   Card,
-  Dialog,
+  Chip,
   Divider,
+  Icon,
   IconButton,
-  Menu,
-  Portal,
+  Searchbar,
   Text,
 } from "react-native-paper";
 
-import { useFocusEffect } from "expo-router";
-
-import { useAccountStore } from "../../src/store/accountStore";
-
-import { useCategoryStore } from "../../src/store/categoryStore";
+import {
+  useFocusEffect,
+} from "expo-router";
 
 import {
   useTransactionStore,
 } from "../../src/store/transactionStore";
 
+import {
+  useAccountStore,
+} from "../../src/store/accountStore";
+
+import {
+  useCategoryStore,
+} from "../../src/store/categoryStore";
+
 import ExpenseModal from "../../src/features/transactions/components/ExpenseModal";
 
-import type {
-  Transaction,
-} from "../../src/features/transactions/types/transaction";
+import IncomeModal from "../../src/features/transactions/components/IncomeModal";
 
-import TransactionFilters, {
-  TransactionFilterType,
-} from "../../src/features/transactions/components/TransactionFilters";
+import { Transaction } from "../../src/features/transactions/types/transaction";
+
+type FilterType =
+  | "all"
+  | "income"
+  | "expense";
+
+type GroupedTransactions = {
+  title: string;
+  data: Transaction[];
+};
 
 export default function TransactionsScreen() {
-  // ========================================
-  // STORES
-  // ========================================
-
   const {
     transactions,
-    loading,
     loadTransactions,
     deleteTransaction,
-  } = useTransactionStore();
+  } =
+    useTransactionStore();
 
   const {
     accounts,
     loadAccounts,
-  } = useAccountStore();
+  } =
+    useAccountStore();
 
   const {
     categories,
     loadCategories,
-  } = useCategoryStore();
-
-  // ========================================
-  // MENU STATE
-  // ========================================
-
-  const [
-    menuTransactionId,
-    setMenuTransactionId,
-  ] = useState<string | null>(null);
-
-  // ========================================
-  // DELETE STATE
-  // ========================================
-
-  const [
-    deleteDialogVisible,
-    setDeleteDialogVisible,
-  ] = useState(false);
-
-  const [
-    transactionToDelete,
-    setTransactionToDelete,
-  ] = useState<Transaction | null>(
-    null
-  );
-
-  // ========================================
-  // EDIT STATE
-  // ========================================
-
-  const [
-    editTransaction,
-    setEditTransaction,
-  ] = useState<Transaction | null>(
-    null
-  );
-
-  const [
-    editModalVisible,
-    setEditModalVisible,
-  ] = useState(false);
-
-  // ========================================
-  // FILTER STATE
-  // ========================================
+  } =
+    useCategoryStore();
 
   const [
     search,
@@ -115,129 +80,75 @@ export default function TransactionsScreen() {
   ] = useState("");
 
   const [
-    filterType,
-    setFilterType,
+    filter,
+    setFilter,
   ] =
-    useState<TransactionFilterType>(
-      "all"
+    useState<FilterType>("all");
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
+
+  const [
+    expenseVisible,
+    setExpenseVisible,
+  ] = useState(false);
+
+  const [
+    incomeVisible,
+    setIncomeVisible,
+  ] = useState(false);
+
+  const [
+    selectedTransaction,
+    setSelectedTransaction,
+  ] =
+    useState<Transaction | null>(
+      null
     );
-
-  const [
-    filterAccountId,
-    setFilterAccountId,
-  ] = useState("");
-
-  const [
-    filterCategory,
-    setFilterCategory,
-  ] = useState("");
-
-  // ========================================
-  // ACCOUNT OPTIONS
-  // ========================================
-
-  const accountOptions = useMemo(
-    () => {
-      return accounts.map(
-        (account) => ({
-          label: account.name,
-          value: account.id,
-        })
-      );
-    },
-    [accounts]
-  );
-
-  // ========================================
-  // CATEGORY OPTIONS
-  // ========================================
-
-  const categoryOptions = useMemo(
-    () => {
-      return categories
-        .filter(
-          (category) =>
-            category.type ===
-              "expense" ||
-            category.type ===
-              "both"
-        )
-        .sort((a, b) =>
-          a.name.localeCompare(
-            b.name
-          )
-        )
-        .map((category) => ({
-          label: category.name,
-          value: category.id,
-        }));
-    },
-    [categories]
-  );
 
   // ========================================
   // LOAD DATA
   // ========================================
 
-  useFocusEffect(
-    useCallback(() => {
-      loadTransactions();
-      loadAccounts();
-      loadCategories();
+  const loadData =
+    useCallback(async () => {
+      await Promise.all([
+        loadTransactions(),
+        loadAccounts(),
+        loadCategories(),
+      ]);
     }, [
       loadTransactions,
       loadAccounts,
       loadCategories,
-    ])
+    ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
   );
 
   // ========================================
-  // ACCOUNT NAME
+  // REFRESH
   // ========================================
 
-  const getAccountName = (
-    accountId: string
-  ) => {
-    const account =
-      accounts.find(
-        (item) =>
-          item.id === accountId
-      );
+  const handleRefresh =
+    async () => {
+      setRefreshing(true);
 
-    return (
-      account?.name ??
-      "Unknown account"
-    );
-  };
+      await loadData();
+
+      setRefreshing(false);
+    };
 
   // ========================================
-  // CATEGORY NAME
+  // FORMAT MONEY
   // ========================================
 
-  const getCategoryName = (
-    categoryId?: string
-  ) => {
-    if (!categoryId) {
-      return "No category";
-    }
-
-    const category =
-      categories.find(
-        (item) =>
-          item.id === categoryId
-      );
-
-    return (
-      category?.name ??
-      "No category"
-    );
-  };
-
-  // ========================================
-  // FORMAT AMOUNT
-  // ========================================
-
-  const formatAmount = (
+  const formatMoney = (
     amount: number
   ) => {
     return `₹${amount.toLocaleString(
@@ -246,122 +157,45 @@ export default function TransactionsScreen() {
   };
 
   // ========================================
-  // FORMAT DATE
+  // GET ACCOUNT
   // ========================================
 
-  const formatDate = (
-    date: string
+  const getAccountName = (
+    accountId: string
   ) => {
-    return new Date(
-      date
-    ).toLocaleDateString(
-      "en-IN",
-      {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }
+    return (
+      accounts.find(
+        (account) =>
+          account.id === accountId
+      )?.name ??
+      "Unknown account"
     );
   };
 
   // ========================================
-  // DELETE REQUEST
+  // GET CATEGORY
   // ========================================
 
-  const handleDeleteRequest = (
-    transaction: Transaction
+  const getCategoryName = (
+    categoryId?: string
   ) => {
-    setMenuTransactionId(
-      null
-    );
+    if (!categoryId) {
+      return "Other";
+    }
 
-    setTransactionToDelete(
-      transaction
-    );
-
-    setDeleteDialogVisible(
-      true
+    return (
+      categories.find(
+        (category) =>
+          category.id ===
+          categoryId
+      )?.name ??
+      categoryId ??
+      "Other"
     );
   };
 
   // ========================================
-  // DELETE CONFIRM
-  // ========================================
-
-  const handleDeleteConfirm =
-    async () => {
-      if (
-        !transactionToDelete
-      ) {
-        return;
-      }
-
-      const result =
-        await deleteTransaction(
-          transactionToDelete.id
-        );
-
-      if (!result.success) {
-        console.error(
-          "Delete failed:",
-          result.error
-        );
-
-        return;
-      }
-
-      setDeleteDialogVisible(
-        false
-      );
-
-      setTransactionToDelete(
-        null
-      );
-
-      await loadTransactions();
-      await loadAccounts();
-    };
-
-  // ========================================
-  // EDIT TRANSACTION
-  // ========================================
-
-  const handleEdit = (
-    transaction: Transaction
-  ) => {
-    setMenuTransactionId(
-      null
-    );
-
-    setEditTransaction(
-      transaction
-    );
-
-    setEditModalVisible(
-      true
-    );
-  };
-
-  // ========================================
-  // CLOSE EDIT MODAL
-  // ========================================
-
-  const handleEditDismiss =
-    async () => {
-      setEditModalVisible(
-        false
-      );
-
-      setEditTransaction(
-        null
-      );
-
-      await loadTransactions();
-      await loadAccounts();
-    };
-
-  // ========================================
-  // FILTER TRANSACTIONS
+  // FILTER
   // ========================================
 
   const filteredTransactions =
@@ -374,79 +208,45 @@ export default function TransactionsScreen() {
       return transactions
         .filter(
           (transaction) => {
-            // ==============================
-            // TYPE
-            // ==============================
-
-            const matchesType =
-              filterType ===
-                "all" ||
-              transaction.type ===
-                filterType;
-
-            if (!matchesType) {
+            if (
+              filter !==
+                "all" &&
+              transaction.type !==
+                filter
+            ) {
               return false;
             }
-
-            // ==============================
-            // ACCOUNT
-            // ==============================
-
-            const matchesAccount =
-              !filterAccountId ||
-              transaction.accountId ===
-                filterAccountId;
-
-            if (!matchesAccount) {
-              return false;
-            }
-
-            // ==============================
-            // CATEGORY
-            // ==============================
-
-            const matchesCategory =
-              !filterCategory ||
-              transaction.category ===
-                filterCategory;
-
-            if (!matchesCategory) {
-              return false;
-            }
-
-            // ==============================
-            // SEARCH
-            // ==============================
 
             if (!query) {
               return true;
             }
-
-            const categoryName =
-              getCategoryName(
-                transaction.category
-              );
 
             const accountName =
               getAccountName(
                 transaction.accountId
               );
 
-            const searchableText =
-              [
-                transaction.details,
-                transaction.category,
-                categoryName,
-                transaction.paymentType,
-                transaction.notes,
-                accountName,
-              ]
-                .filter(Boolean)
-                .join(" ")
-                .toLowerCase();
+            const categoryName =
+              getCategoryName(
+                transaction.category
+              );
 
-            return searchableText.includes(
-              query
+            return (
+              transaction.details
+                ?.toLowerCase()
+                .includes(query) ||
+              transaction.notes
+                ?.toLowerCase()
+                .includes(query) ||
+              accountName
+                .toLowerCase()
+                .includes(query) ||
+              categoryName
+                .toLowerCase()
+                .includes(query) ||
+              transaction.paymentType
+                ?.toLowerCase()
+                .includes(query)
             );
           }
         )
@@ -461,400 +261,600 @@ export default function TransactionsScreen() {
         );
     }, [
       transactions,
+      filter,
       search,
-      filterType,
-      filterAccountId,
-      filterCategory,
       accounts,
       categories,
     ]);
 
   // ========================================
-  // CLEAR FILTERS
+  // DATE HELPERS
   // ========================================
 
-  const handleClearFilters =
-    () => {
-      setSearch("");
-      setFilterType("all");
-      setFilterAccountId("");
-      setFilterCategory("");
+  const isSameDay = (
+    first: Date,
+    second: Date
+  ) => {
+    return (
+      first.getFullYear() ===
+        second.getFullYear() &&
+      first.getMonth() ===
+        second.getMonth() &&
+      first.getDate() ===
+        second.getDate()
+    );
+  };
+
+  const getDateGroup = (
+    dateString: string
+  ) => {
+    const date =
+      new Date(dateString);
+
+    const today =
+      new Date();
+
+    const yesterday =
+      new Date();
+
+    yesterday.setDate(
+      yesterday.getDate() - 1
+    );
+
+    if (
+      isSameDay(
+        date,
+        today
+      )
+    ) {
+      return "Today";
+    }
+
+    if (
+      isSameDay(
+        date,
+        yesterday
+      )
+    ) {
+      return "Yesterday";
+    }
+
+    return date.toLocaleDateString(
+      "en-IN",
+      {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }
+    );
+  };
+
+  // ========================================
+  // GROUP TRANSACTIONS
+  // ========================================
+
+  const groupedTransactions =
+    useMemo(() => {
+      const groups =
+        new Map<
+          string,
+          Transaction[]
+        >();
+
+      filteredTransactions.forEach(
+        (transaction) => {
+          const group =
+            getDateGroup(
+              transaction.date
+            );
+
+          const existing =
+            groups.get(group);
+
+          if (existing) {
+            existing.push(
+              transaction
+            );
+          } else {
+            groups.set(
+              group,
+              [transaction]
+            );
+          }
+        }
+      );
+
+      return Array.from(
+        groups.entries()
+      ).map(
+        ([
+          title,
+          data,
+        ]) => ({
+          title,
+          data,
+        })
+      );
+    }, [
+      filteredTransactions,
+    ]);
+
+  // ========================================
+  // TOTALS
+  // ========================================
+
+  const totalIncome =
+    filteredTransactions
+      .filter(
+        (transaction) =>
+          transaction.type ===
+          "income"
+      )
+      .reduce(
+        (total, transaction) =>
+          total +
+          transaction.amount,
+        0
+      );
+
+  const totalExpense =
+    filteredTransactions
+      .filter(
+        (transaction) =>
+          transaction.type ===
+          "expense"
+      )
+      .reduce(
+        (total, transaction) =>
+          total +
+          transaction.amount,
+        0
+      );
+
+  // ========================================
+  // DELETE
+  // ========================================
+
+  const handleDelete =
+    async (
+      transaction: Transaction
+    ) => {
+      await deleteTransaction(
+        transaction.id
+      );
+
+      await loadData();
     };
 
   // ========================================
-  // REFRESH
+  // EDIT
   // ========================================
 
-  const handleRefresh =
-    useCallback(
-      async () => {
-        await Promise.all([
-          loadTransactions(),
-          loadAccounts(),
-          loadCategories(),
-        ]);
-      },
-      [
-        loadTransactions,
-        loadAccounts,
-        loadCategories,
-      ]
-    );
-
-  // ========================================
-  // RENDER TRANSACTION
-  // ========================================
-
-  const renderTransaction = ({
-    item,
-  }: {
-    item: Transaction;
-  }) => {
-    const isExpense =
-      item.type ===
-      "expense";
-
-    const isMenuOpen =
-      menuTransactionId ===
-      item.id;
-
-    const accountName =
-      getAccountName(
-        item.accountId
+  const handleEdit =
+    (
+      transaction: Transaction
+    ) => {
+      setSelectedTransaction(
+        transaction
       );
 
-    const categoryName =
-      getCategoryName(
-        item.category
+      if (
+        transaction.type ===
+        "expense"
+      ) {
+        setExpenseVisible(
+          true
+        );
+      } else {
+        setIncomeVisible(
+          true
+        );
+      }
+    };
+
+  // ========================================
+  // CLOSE MODAL
+  // ========================================
+
+  const closeExpense =
+    () => {
+      setExpenseVisible(
+        false
       );
 
-    return (
-      <Card
-        style={styles.card}
-      >
-        <Card.Content>
+      setSelectedTransaction(
+        null
+      );
+
+      loadData();
+    };
+
+  const closeIncome =
+    () => {
+      setIncomeVisible(
+        false
+      );
+
+      setSelectedTransaction(
+        null
+      );
+
+      loadData();
+    };
+
+  // ========================================
+  // TRANSACTION ITEM
+  // ========================================
+
+  const renderTransaction =
+    (
+      transaction: Transaction
+    ) => {
+      const isExpense =
+        transaction.type ===
+        "expense";
+
+      const accountName =
+        getAccountName(
+          transaction.accountId
+        );
+
+      const categoryName =
+        getCategoryName(
+          transaction.category
+        );
+
+      const transactionDate =
+        new Date(
+          transaction.date
+        );
+
+      return (
+        <View
+          key={transaction.id}
+        >
           <View
-            style={styles.row}
+            style={
+              styles.transactionRow
+            }
           >
-            {/* ================================= */}
-            {/* LEFT SIDE */}
-            {/* ================================= */}
-
+            {/* LEFT */}
             <View
               style={
-                styles.details
+                styles.leftSection
               }
             >
-              <Text
-                variant="titleMedium"
+              <View
+                style={[
+                  styles.iconContainer,
+                  {
+                    backgroundColor:
+                      isExpense
+                        ? "#FEE2E2"
+                        : "#DCFCE7",
+                  },
+                ]}
+              >
+                <Icon
+                  source={
+                    isExpense
+                      ? "arrow-up"
+                      : "arrow-down"
+                  }
+                  size={21}
+                  color={
+                    isExpense
+                      ? "#D32F2F"
+                      : "#16A34A"
+                  }
+                />
+              </View>
+
+              <View
                 style={
-                  styles.transactionTitle
+                  styles.transactionInfo
                 }
               >
-                {item.details ||
-                  "Transaction"}
-              </Text>
+                <Text
+                  variant="titleSmall"
+                  style={
+                    styles.transactionTitle
+                  }
+                  numberOfLines={1}
+                >
+                  {transaction.details ||
+                    "Transaction"}
+                </Text>
 
-              {/* CATEGORY */}
-
-              <Text
-                variant="bodyMedium"
-                style={
-                  styles.secondary
-                }
-              >
-                🏷️ {categoryName}
-              </Text>
-
-              {/* ACCOUNT */}
-
-              <Text
-                variant="bodyMedium"
-                style={
-                  styles.secondary
-                }
-              >
-                🏦 {accountName}
-              </Text>
-
-              {/* PAYMENT + DATE */}
-
-              <Text
-                variant="bodySmall"
-                style={
-                  styles.secondary
-                }
-              >
-                {item.paymentType ||
-                  "Payment"}{" "}
-                •{" "}
-                {formatDate(
-                  item.date
-                )}
-              </Text>
-
-              {/* NOTES */}
-
-              {!!item.notes && (
                 <Text
                   variant="bodySmall"
-                  numberOfLines={1}
                   style={
-                    styles.notes
+                    styles.secondaryText
+                  }
+                  numberOfLines={1}
+                >
+                  {accountName}
+                  {" • "}
+                  {categoryName}
+                </Text>
+
+                <Text
+                  variant="bodySmall"
+                  style={
+                    styles.dateText
                   }
                 >
-                  {item.notes}
+                  {transactionDate.toLocaleTimeString(
+                    "en-IN",
+                    {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    }
+                  )}
+                  {" • "}
+                  {
+                    transaction.paymentType
+                  }
                 </Text>
-              )}
+              </View>
             </View>
 
-            {/* ================================= */}
-            {/* RIGHT SIDE */}
-            {/* ================================= */}
-
+            {/* RIGHT */}
             <View
               style={
                 styles.rightSection
               }
             >
-              {/* AMOUNT */}
-
               <Text
-                variant="titleMedium"
-                style={[
-                  styles.amount,
+                variant="titleSmall"
+                style={
                   isExpense
                     ? styles.expense
-                    : styles.income,
-                ]}
+                    : styles.income
+                }
               >
                 {isExpense
                   ? "-"
                   : "+"}
-                {formatAmount(
-                  item.amount
+                {formatMoney(
+                  transaction.amount
                 )}
               </Text>
 
-              {/* MENU */}
-
-              <Menu
-                visible={
-                  isMenuOpen
-                }
-                onDismiss={() =>
-                  setMenuTransactionId(
-                    null
-                  )
-                }
-                anchor={
-                  <IconButton
-                    icon="dots-vertical"
-                    onPress={() =>
-                      setMenuTransactionId(
-                        item.id
-                      )
-                    }
-                  />
+              <View
+                style={
+                  styles.actions
                 }
               >
-                {/* EDIT */}
-
-                <Menu.Item
-                  leadingIcon="pencil"
-                  title="Edit"
+                <IconButton
+                  icon="pencil-outline"
+                  size={18}
                   onPress={() =>
                     handleEdit(
-                      item
+                      transaction
                     )
                   }
                 />
 
-                {/* DELETE */}
-
-                <Menu.Item
-                  leadingIcon="delete"
-                  title="Delete"
+                <IconButton
+                  icon="delete-outline"
+                  size={18}
+                  iconColor="#D32F2F"
                   onPress={() =>
-                    handleDeleteRequest(
-                      item
+                    handleDelete(
+                      transaction
                     )
                   }
                 />
-              </Menu>
+              </View>
             </View>
           </View>
-        </Card.Content>
 
-        <Divider />
-      </Card>
-    );
-  };
-
-  // ========================================
-  // EMPTY STATE
-  // ========================================
-
-  const isEmpty =
-    filteredTransactions.length ===
-    0;
+          <Divider />
+        </View>
+      );
+    };
 
   // ========================================
   // UI
   // ========================================
 
   return (
-    <View
-      style={
-        styles.container
-      }
-    >
-      {/* ================================== */}
-      {/* TITLE */}
-      {/* ================================== */}
-
-      <Text
-        variant="headlineSmall"
-        style={styles.title}
-      >
-        Transactions
-      </Text>
-
-      {/* ================================== */}
-      {/* FILTERS */}
-      {/* ================================== */}
-
-      <TransactionFilters
-        search={search}
-        type={filterType}
-        accountId={
-          filterAccountId
-        }
-        category={
-          filterCategory
-        }
-        accountOptions={
-          accountOptions
-        }
-        categoryOptions={
-          categoryOptions
-        }
-        onSearchChange={
-          setSearch
-        }
-        onTypeChange={
-          setFilterType
-        }
-        onAccountChange={
-          setFilterAccountId
-        }
-        onCategoryChange={
-          setFilterCategory
-        }
-        onClear={
-          handleClearFilters
-        }
-      />
-
-      {/* ================================== */}
-      {/* TRANSACTION LIST */}
-      {/* ================================== */}
-
-      <FlatList
-        data={
-          filteredTransactions
-        }
-        keyExtractor={(item) =>
-          item.id
-        }
-        renderItem={
-          renderTransaction
+    <>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={
+          styles.content
         }
         refreshControl={
           <RefreshControl
-            refreshing={loading}
+            refreshing={
+              refreshing
+            }
             onRefresh={
               handleRefresh
             }
           />
         }
-        contentContainerStyle={
-          isEmpty
-            ? styles.emptyContainer
-            : styles.list
-        }
-        ListEmptyComponent={
-          <View
-            style={
-              styles.emptyState
-            }
-          >
-            <Text
-              variant="titleLarge"
-              style={
-                styles.emptyTitle
-              }
-            >
-              {transactions.length ===
-              0
-                ? "No transactions yet"
-                : "No matching transactions"}
-            </Text>
-
-            <Text
-              variant="bodyMedium"
-              style={
-                styles.emptyText
-              }
-            >
-              {transactions.length ===
-              0
-                ? "Your income and expenses will appear here."
-                : "Try changing your search or filters."}
-            </Text>
-          </View>
-        }
         showsVerticalScrollIndicator={
           false
         }
-      />
+      >
+        {/* ================================= */}
+        {/* HEADER */}
+        {/* ================================= */}
 
-      {/* ================================== */}
-      {/* DELETE DIALOG */}
-      {/* ================================== */}
-
-      <Portal>
-        <Dialog
-          visible={
-            deleteDialogVisible
+        <View
+          style={
+            styles.header
           }
-          onDismiss={() => {
-            setDeleteDialogVisible(
-              false
-            );
-
-            setTransactionToDelete(
-              null
-            );
-          }}
         >
-          <Dialog.Title>
-            Delete Transaction?
-          </Dialog.Title>
-
-          <Dialog.Content>
-            <Text>
-              Are you sure you want
-              to delete this
-              transaction?
+          <View>
+            <Text
+              variant="headlineMedium"
+              style={
+                styles.title
+              }
+            >
+              Transactions
             </Text>
 
-            {transactionToDelete && (
-              <View
-                style={
-                  styles.deleteInfo
-                }
-              >
+            <Text
+              variant="bodySmall"
+              style={
+                styles.subtitle
+              }
+            >
+              {
+                filteredTransactions.length
+              }{" "}
+              transactions
+            </Text>
+          </View>
+        </View>
+
+        {/* ================================= */}
+        {/* SEARCH */}
+        {/* ================================= */}
+
+        <Searchbar
+          placeholder="Search transactions"
+          value={search}
+          onChangeText={
+            setSearch
+          }
+          style={
+            styles.searchbar
+          }
+        />
+
+        {/* ================================= */}
+        {/* FILTER */}
+        {/* ================================= */}
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.filterContainer
+          }
+        >
+          <Chip
+            selected={
+              filter === "all"
+            }
+            onPress={() =>
+              setFilter("all")
+            }
+            style={
+              styles.chip
+            }
+          >
+            All
+          </Chip>
+
+          <Chip
+            selected={
+              filter === "income"
+            }
+            onPress={() =>
+              setFilter("income")
+            }
+            style={
+              styles.chip
+            }
+            icon="arrow-down"
+          >
+            Income
+          </Chip>
+
+          <Chip
+            selected={
+              filter === "expense"
+            }
+            onPress={() =>
+              setFilter("expense")
+            }
+            style={
+              styles.chip
+            }
+            icon="arrow-up"
+          >
+            Expense
+          </Chip>
+        </ScrollView>
+
+        {/* ================================= */}
+        {/* SUMMARY */}
+        {/* ================================= */}
+
+        <Card
+          style={
+            styles.summaryCard
+          }
+        >
+          <Card.Content>
+            <View
+              style={
+                styles.summaryRow
+              }
+            >
+              <View>
+                <Text
+                  variant="bodySmall"
+                  style={
+                    styles.secondaryText
+                  }
+                >
+                  Income
+                </Text>
+
+                <Text
+                  variant="titleMedium"
+                  style={
+                    styles.income
+                  }
+                >
+                  +{formatMoney(
+                    totalIncome
+                  )}
+                </Text>
+              </View>
+
+              <View>
+                <Text
+                  variant="bodySmall"
+                  style={
+                    styles.secondaryText
+                  }
+                >
+                  Expense
+                </Text>
+
+                <Text
+                  variant="titleMedium"
+                  style={
+                    styles.expense
+                  }
+                >
+                  -{formatMoney(
+                    totalExpense
+                  )}
+                </Text>
+              </View>
+
+              <View>
+                <Text
+                  variant="bodySmall"
+                  style={
+                    styles.secondaryText
+                  }
+                >
+                  Count
+                </Text>
+
                 <Text
                   variant="titleMedium"
                   style={
@@ -862,75 +862,155 @@ export default function TransactionsScreen() {
                   }
                 >
                   {
-                    transactionToDelete.details
+                    filteredTransactions.length
                   }
-                </Text>
-
-                <Text
-                  variant="bodyMedium"
-                >
-                  {formatAmount(
-                    transactionToDelete.amount
-                  )}
-                </Text>
-
-                <Text
-                  variant="bodySmall"
-                  style={
-                    styles.warning
-                  }
-                >
-                  The account balance
-                  will also be
-                  updated.
                 </Text>
               </View>
-            )}
-          </Dialog.Content>
+            </View>
+          </Card.Content>
+        </Card>
 
-          <Dialog.Actions>
-            <Button
-              onPress={() => {
-                setDeleteDialogVisible(
-                  false
-                );
+        {/* ================================= */}
+        {/* EMPTY */}
+        {/* ================================= */}
 
-                setTransactionToDelete(
-                  null
-                );
-              }}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              textColor="#D32F2F"
-              onPress={
-                handleDeleteConfirm
+        {groupedTransactions.length ===
+        0 ? (
+          <Card
+            style={
+              styles.emptyCard
+            }
+          >
+            <Card.Content
+              style={
+                styles.emptyContent
               }
             >
-              Delete
-            </Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
+              <Icon
+                source="receipt-text-outline"
+                size={52}
+                color="#999"
+              />
+
+              <Text
+                variant="titleMedium"
+                style={
+                  styles.emptyTitle
+                }
+              >
+                No transactions
+              </Text>
+
+              <Text
+                variant="bodyMedium"
+                style={
+                  styles.emptyText
+                }
+              >
+                {search
+                  ? "No transactions match your search."
+                  : "Your transactions will appear here."}
+              </Text>
+
+              {search && (
+                <Button
+                  mode="outlined"
+                  onPress={() =>
+                    setSearch("")
+                  }
+                  style={
+                    styles.clearButton
+                  }
+                >
+                  Clear Search
+                </Button>
+              )}
+            </Card.Content>
+          </Card>
+        ) : (
+          /* ================================= */
+          /* GROUPS */
+          /* ================================= */
+
+          groupedTransactions.map(
+            (group) => (
+              <View
+                key={
+                  group.title
+                }
+                style={
+                  styles.group
+                }
+              >
+                <Text
+                  variant="titleSmall"
+                  style={
+                    styles.groupTitle
+                  }
+                >
+                  {
+                    group.title
+                  }
+                </Text>
+
+                <Card
+                  style={
+                    styles.transactionCard
+                  }
+                >
+                  <Card.Content
+                    style={
+                      styles.transactionContent
+                    }
+                  >
+                    {group.data.map(
+                      (
+                        transaction
+                      ) =>
+                        renderTransaction(
+                          transaction
+                        )
+                    )}
+                  </Card.Content>
+                </Card>
+              </View>
+            )
+          )
+        )}
+      </ScrollView>
 
       {/* ================================== */}
-      {/* EDIT EXPENSE */}
+      {/* EXPENSE MODAL */}
       {/* ================================== */}
 
       <ExpenseModal
         visible={
-          editModalVisible
+          expenseVisible
         }
         transaction={
-          editTransaction
+          selectedTransaction
         }
         onDismiss={
-          handleEditDismiss
+          closeExpense
         }
       />
-    </View>
+
+      {/* ================================== */}
+      {/* INCOME MODAL */}
+      {/* ================================== */}
+
+      <IncomeModal
+        visible={
+          incomeVisible
+        }
+        transaction={
+          selectedTransaction
+        }
+        onDismiss={
+          closeIncome
+        }
+      />
+    </>
   );
 }
 
@@ -942,101 +1022,162 @@ const styles =
   StyleSheet.create({
     container: {
       flex: 1,
+    },
+
+    content: {
       padding: 16,
+      paddingBottom: 40,
+    },
+
+    header: {
+      marginBottom: 16,
     },
 
     title: {
-      marginBottom: 16,
-      fontWeight: "600",
+      fontWeight: "700",
     },
 
-    list: {
-      paddingBottom: 100,
-      gap: 10,
-    },
-
-    emptyContainer: {
-      flexGrow: 1,
-    },
-
-    emptyState: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent:
-        "center",
-      paddingHorizontal: 30,
-    },
-
-    emptyTitle: {
-      fontWeight: "600",
-      textAlign: "center",
-    },
-
-    emptyText: {
+    subtitle: {
       color: "#777",
-      textAlign: "center",
-      marginTop: 8,
+      marginTop: 3,
     },
 
-    card: {
+    searchbar: {
+      borderRadius: 12,
+      marginBottom: 12,
+    },
+
+    filterContainer: {
+      gap: 8,
+      paddingBottom: 14,
+    },
+
+    chip: {
+      borderRadius: 20,
+    },
+
+    summaryCard: {
       borderRadius: 14,
-      overflow: "hidden",
+      marginBottom: 22,
     },
 
-    row: {
+    summaryRow: {
       flexDirection: "row",
-      alignItems: "center",
       justifyContent:
         "space-between",
     },
 
-    details: {
+    group: {
+      marginBottom: 18,
+    },
+
+    groupTitle: {
+      fontWeight: "700",
+      color: "#555",
+      marginBottom: 8,
+    },
+
+    transactionCard: {
+      borderRadius: 14,
+      overflow: "hidden",
+    },
+
+    transactionContent: {
+      paddingVertical: 0,
+      paddingHorizontal: 14,
+    },
+
+    transactionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+      minHeight: 78,
+      paddingVertical: 10,
+    },
+
+    leftSection: {
+      flexDirection: "row",
+      alignItems: "center",
       flex: 1,
-      marginRight: 12,
+      minWidth: 0,
+    },
+
+    iconContainer: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      alignItems: "center",
+      justifyContent:
+        "center",
+    },
+
+    transactionInfo: {
+      flex: 1,
+      marginLeft: 11,
+      marginRight: 8,
     },
 
     transactionTitle: {
       fontWeight: "600",
     },
 
-    secondary: {
-      marginTop: 4,
+    secondaryText: {
       color: "#777",
+      marginTop: 2,
     },
 
-    notes: {
-      marginTop: 5,
-      color: "#555",
-      fontStyle: "italic",
+    dateText: {
+      color: "#999",
+      marginTop: 2,
     },
 
     rightSection: {
       alignItems: "flex-end",
     },
 
-    amount: {
+    actions: {
+      flexDirection: "row",
+      marginRight: -8,
+      marginTop: -4,
+    },
+
+    income: {
+      color: "#16A34A",
       fontWeight: "700",
     },
 
     expense: {
       color: "#D32F2F",
-    },
-
-    income: {
-      color: "#2E7D32",
-    },
-
-    deleteInfo: {
-      marginTop: 14,
-      gap: 4,
+      fontWeight: "700",
     },
 
     bold: {
       fontWeight: "700",
     },
 
-    warning: {
-      color: "#D32F2F",
-      marginTop: 8,
+    emptyCard: {
+      borderRadius: 16,
+      marginTop: 10,
+    },
+
+    emptyContent: {
+      alignItems: "center",
+      paddingVertical: 40,
+    },
+
+    emptyTitle: {
+      fontWeight: "600",
+      marginTop: 12,
+    },
+
+    emptyText: {
+      color: "#777",
+      textAlign: "center",
+      marginTop: 6,
+    },
+
+    clearButton: {
+      marginTop: 16,
     },
   });

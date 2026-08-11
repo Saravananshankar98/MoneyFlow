@@ -1,152 +1,245 @@
-import { useCallback, useMemo, useState } from "react";
+import {
+  useCallback,
+  useMemo,
+  useState,
+} from "react";
+
 import {
   RefreshControl,
   ScrollView,
   StyleSheet,
   View,
 } from "react-native";
+
 import {
   Card,
   Divider,
+  IconButton,
+  ProgressBar,
   Text,
 } from "react-native-paper";
+
 import { useFocusEffect } from "expo-router";
 
 import { useAccountStore } from "../../src/store/accountStore";
+import { useCategoryStore } from "../../src/store/categoryStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
 
 export default function ReportsScreen() {
+  const {
+    transactions,
+    loadTransactions,
+  } = useTransactionStore();
+
   const {
     accounts,
     loadAccounts,
   } = useAccountStore();
 
   const {
-    transactions,
-    loadTransactions,
-  } = useTransactionStore();
+    categories,
+    loadCategories,
+  } = useCategoryStore();
 
-  const [refreshing, setRefreshing] =
-    useState(false);
+  const [
+    selectedMonth,
+    setSelectedMonth,
+  ] = useState(
+    new Date()
+  );
+
+  const [
+    refreshing,
+    setRefreshing,
+  ] = useState(false);
 
   // ========================================
-  // LOAD DATA
+  // LOAD
   // ========================================
+
+  const loadData =
+    useCallback(async () => {
+      await Promise.all([
+        loadTransactions(),
+        loadAccounts(),
+        loadCategories(),
+      ]);
+    }, [
+      loadTransactions,
+      loadAccounts,
+      loadCategories,
+    ]);
 
   useFocusEffect(
     useCallback(() => {
-      loadAccounts();
-      loadTransactions();
-    }, [
-      loadAccounts,
-      loadTransactions,
-    ])
+      loadData();
+    }, [loadData])
   );
 
   // ========================================
-  // CURRENT MONTH
+  // REFRESH
+  // ========================================
+
+  const handleRefresh =
+    async () => {
+      setRefreshing(true);
+
+      await loadData();
+
+      setRefreshing(false);
+    };
+
+  // ========================================
+  // MONTH NAVIGATION
+  // ========================================
+
+  const changeMonth = (
+    amount: number
+  ) => {
+    setSelectedMonth(
+      (current) =>
+        new Date(
+          current.getFullYear(),
+          current.getMonth() +
+            amount,
+          1
+        )
+    );
+  };
+
+  // ========================================
+  // MONTH RANGE
+  // ========================================
+
+  const monthStart =
+    useMemo(() => {
+      return new Date(
+        selectedMonth.getFullYear(),
+        selectedMonth.getMonth(),
+        1,
+        0,
+        0,
+        0,
+        0
+      );
+    }, [selectedMonth]);
+
+  const monthEnd =
+    useMemo(() => {
+      return new Date(
+        selectedMonth.getFullYear(),
+        selectedMonth.getMonth() +
+          1,
+        0,
+        23,
+        59,
+        59,
+        999
+      );
+    }, [selectedMonth]);
+
+  // ========================================
+  // MONTH TRANSACTIONS
   // ========================================
 
   const monthTransactions =
     useMemo(() => {
-      const now = new Date();
-
       return transactions.filter(
         (transaction) => {
-          const date = new Date(
-            transaction.date
-          );
+          const date =
+            new Date(
+              transaction.date
+            );
 
           return (
-            date.getMonth() ===
-              now.getMonth() &&
-            date.getFullYear() ===
-              now.getFullYear()
+            date >= monthStart &&
+            date <= monthEnd
           );
         }
       );
-    }, [transactions]);
-
-  // ========================================
-  // MONTH NAME
-  // ========================================
-
-  const currentMonthName =
-    useMemo(() => {
-      return new Date().toLocaleDateString(
-        "en-IN",
-        {
-          month: "long",
-          year: "numeric",
-        }
-      );
-    }, []);
+    }, [
+      transactions,
+      monthStart,
+      monthEnd,
+    ]);
 
   // ========================================
   // INCOME
   // ========================================
 
-  const totalIncome = useMemo(() => {
-    return monthTransactions
-      .filter(
-        (transaction) =>
-          transaction.type ===
-          "income"
-      )
-      .reduce(
-        (total, transaction) =>
-          total + transaction.amount,
-        0
-      );
-  }, [monthTransactions]);
+  const monthlyIncome =
+    useMemo(() => {
+      return monthTransactions
+        .filter(
+          (transaction) =>
+            transaction.type ===
+            "income"
+        )
+        .reduce(
+          (total, transaction) =>
+            total +
+            transaction.amount,
+          0
+        );
+    }, [monthTransactions]);
 
   // ========================================
   // EXPENSE
   // ========================================
 
-  const totalExpense = useMemo(() => {
-    return monthTransactions
-      .filter(
-        (transaction) =>
-          transaction.type ===
-          "expense"
-      )
-      .reduce(
-        (total, transaction) =>
-          total + transaction.amount,
-        0
-      );
-  }, [monthTransactions]);
+  const monthlyExpense =
+    useMemo(() => {
+      return monthTransactions
+        .filter(
+          (transaction) =>
+            transaction.type ===
+            "expense"
+        )
+        .reduce(
+          (total, transaction) =>
+            total +
+            transaction.amount,
+          0
+        );
+    }, [monthTransactions]);
 
   // ========================================
   // SAVINGS
   // ========================================
 
   const savings =
-    totalIncome - totalExpense;
+    monthlyIncome -
+    monthlyExpense;
+
+  const savingsRate =
+    monthlyIncome > 0
+      ? (savings /
+          monthlyIncome) *
+        100
+      : 0;
 
   // ========================================
-  // TOTAL BALANCE
+  // BALANCE
   // ========================================
 
-  const totalBalance = useMemo(() => {
-    return accounts.reduce(
+  const totalBalance =
+    accounts.reduce(
       (total, account) =>
         total + account.balance,
       0
     );
-  }, [accounts]);
 
   // ========================================
-  // CATEGORY EXPENSES
+  // CATEGORY EXPENSE
   // ========================================
 
   const categoryExpenses =
     useMemo(() => {
-      const map: Record<
-        string,
-        number
-      > = {};
+      const map =
+        new Map<
+          string,
+          number
+        >();
 
       monthTransactions
         .filter(
@@ -154,96 +247,127 @@ export default function ReportsScreen() {
             transaction.type ===
             "expense"
         )
-        .forEach((transaction) => {
-          const category =
-            transaction.category?.trim() ||
-            "Other";
+        .forEach(
+          (transaction) => {
+            const categoryId =
+              transaction.category ??
+              "Other";
 
-          map[category] =
-            (map[category] ?? 0) +
-            transaction.amount;
-        });
+            const current =
+              map.get(
+                categoryId
+              ) ?? 0;
 
-      return Object.entries(map)
-        .map(
-          ([
-            category,
-            amount,
-          ]) => ({
-            category,
-            amount,
-          })
-        )
-        .sort(
-          (a, b) =>
-            b.amount - a.amount
+            map.set(
+              categoryId,
+              current +
+                transaction.amount
+            );
+          }
         );
-    }, [monthTransactions]);
 
-  // ========================================
-  // ACCOUNT EXPENSES
-  // ========================================
-
-  const accountExpenses =
-    useMemo(() => {
-      const map: Record<
-        string,
-        number
-      > = {};
-
-      monthTransactions
-        .filter(
-          (transaction) =>
-            transaction.type ===
-            "expense"
-        )
-        .forEach((transaction) => {
-          map[transaction.accountId] =
-            (map[
-              transaction.accountId
-            ] ?? 0) +
-            transaction.amount;
-        });
-
-      return Object.entries(map)
+      return Array.from(
+        map.entries()
+      )
         .map(
           ([
-            accountId,
+            categoryId,
             amount,
           ]) => {
-            const account =
-              accounts.find(
+            const category =
+              categories.find(
                 (item) =>
                   item.id ===
-                  accountId
+                  categoryId
               );
 
             return {
-              accountId,
+              id: categoryId,
               name:
-                account?.name ??
-                "Unknown account",
+                category?.name ??
+                "Other",
               amount,
             };
           }
         )
         .sort(
           (a, b) =>
-            b.amount - a.amount
+            b.amount -
+            a.amount
         );
     }, [
       monthTransactions,
-      accounts,
+      categories,
     ]);
 
   // ========================================
-  // MAX CATEGORY
+  // ACCOUNT ACTIVITY
   // ========================================
 
-  const maxCategoryExpense =
-    categoryExpenses.length
-      ? categoryExpenses[0].amount
-      : 0;
+  const accountActivity =
+    useMemo(() => {
+      return accounts
+        .map((account) => {
+          const income =
+            monthTransactions
+              .filter(
+                (transaction) =>
+                  transaction.type ===
+                    "income" &&
+                  transaction.accountId ===
+                    account.id
+              )
+              .reduce(
+                (
+                  total,
+                  transaction
+                ) =>
+                  total +
+                  transaction.amount,
+                0
+              );
+
+          const expense =
+            monthTransactions
+              .filter(
+                (transaction) =>
+                  transaction.type ===
+                    "expense" &&
+                  transaction.accountId ===
+                    account.id
+              )
+              .reduce(
+                (
+                  total,
+                  transaction
+                ) =>
+                  total +
+                  transaction.amount,
+                0
+              );
+
+          return {
+            ...account,
+            monthlyIncome:
+              income,
+            monthlyExpense:
+              expense,
+            net:
+              income -
+              expense,
+          };
+        })
+        .filter(
+          (account) =>
+            account.monthlyIncome >
+              0 ||
+            account.monthlyExpense >
+              0
+        );
+    }, [
+      accounts,
+      monthTransactions,
+    ]);
 
   // ========================================
   // FORMAT MONEY
@@ -258,22 +382,30 @@ export default function ReportsScreen() {
   };
 
   // ========================================
-  // REFRESH
+  // MONTH NAME
   // ========================================
 
-  const handleRefresh =
-    async () => {
-      setRefreshing(true);
-
-      try {
-        await Promise.all([
-          loadAccounts(),
-          loadTransactions(),
-        ]);
-      } finally {
-        setRefreshing(false);
+  const monthName =
+    selectedMonth.toLocaleDateString(
+      "en-IN",
+      {
+        month: "long",
+        year: "numeric",
       }
-    };
+    );
+
+  // ========================================
+  // CURRENT MONTH CHECK
+  // ========================================
+
+  const now =
+    new Date();
+
+  const isCurrentMonth =
+    selectedMonth.getMonth() ===
+      now.getMonth() &&
+    selectedMonth.getFullYear() ===
+      now.getFullYear();
 
   // ========================================
   // UI
@@ -287,16 +419,21 @@ export default function ReportsScreen() {
       }
       refreshControl={
         <RefreshControl
-          refreshing={refreshing}
+          refreshing={
+            refreshing
+          }
           onRefresh={
             handleRefresh
           }
         />
       }
+      showsVerticalScrollIndicator={
+        false
+      }
     >
-      {/* ================================== */}
+      {/* ================================= */}
       {/* HEADER */}
-      {/* ================================== */}
+      {/* ================================= */}
 
       <Text
         variant="headlineMedium"
@@ -305,29 +442,84 @@ export default function ReportsScreen() {
         Reports
       </Text>
 
-      <Text
-        variant="bodyMedium"
-        style={styles.month}
+      {/* ================================= */}
+      {/* MONTH SELECTOR */}
+      {/* ================================= */}
+
+      <Card
+        style={styles.monthCard}
       >
-        {currentMonthName}
-      </Text>
+        <Card.Content>
+          <View
+            style={
+              styles.monthSelector
+            }
+          >
+            <IconButton
+              icon="chevron-left"
+              onPress={() =>
+                changeMonth(-1)
+              }
+            />
 
-      {/* ================================== */}
+            <View
+              style={
+                styles.monthCenter
+              }
+            >
+              <Text
+                variant="titleLarge"
+                style={
+                  styles.monthText
+                }
+              >
+                {monthName}
+              </Text>
+
+              {isCurrentMonth && (
+                <Text
+                  variant="bodySmall"
+                  style={
+                    styles.currentText
+                  }
+                >
+                  Current month
+                </Text>
+              )}
+            </View>
+
+            <IconButton
+              icon="chevron-right"
+              onPress={() =>
+                changeMonth(1)
+              }
+            />
+          </View>
+        </Card.Content>
+      </Card>
+
+      {/* ================================= */}
       {/* TOTAL BALANCE */}
-      {/* ================================== */}
+      {/* ================================= */}
 
-      <Card style={styles.balanceCard}>
+      <Card
+        style={
+          styles.balanceCard
+        }
+      >
         <Card.Content>
           <Text
             variant="bodyMedium"
             style={styles.label}
           >
-            Total Balance
+            Current Total Balance
           </Text>
 
           <Text
             variant="displaySmall"
-            style={styles.balance}
+            style={
+              styles.balance
+            }
           >
             {formatMoney(
               totalBalance
@@ -336,54 +528,91 @@ export default function ReportsScreen() {
         </Card.Content>
       </Card>
 
-      {/* ================================== */}
+      {/* ================================= */}
       {/* SUMMARY */}
-      {/* ================================== */}
+      {/* ================================= */}
 
-      <View style={styles.summaryRow}>
-        <Card style={styles.summaryCard}>
+      <Text
+        variant="titleMedium"
+        style={
+          styles.sectionTitle
+        }
+      >
+        Monthly Summary
+      </Text>
+
+      <View
+        style={
+          styles.summaryRow
+        }
+      >
+        <Card
+          style={[
+            styles.summaryCard,
+            styles.incomeCard,
+          ]}
+        >
           <Card.Content>
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Income
             </Text>
 
             <Text
               variant="titleLarge"
-              style={styles.income}
+              style={
+                styles.income
+              }
             >
               +{formatMoney(
-                totalIncome
+                monthlyIncome
               )}
             </Text>
           </Card.Content>
         </Card>
 
-        <Card style={styles.summaryCard}>
+        <Card
+          style={[
+            styles.summaryCard,
+            styles.expenseCard,
+          ]}
+        >
           <Card.Content>
-            <Text style={styles.label}>
+            <Text
+              style={styles.label}
+            >
               Expense
             </Text>
 
             <Text
               variant="titleLarge"
-              style={styles.expense}
+              style={
+                styles.expense
+              }
             >
               -{formatMoney(
-                totalExpense
+                monthlyExpense
               )}
             </Text>
           </Card.Content>
         </Card>
       </View>
 
-      {/* ================================== */}
+      {/* ================================= */}
       {/* SAVINGS */}
-      {/* ================================== */}
+      {/* ================================= */}
 
-      <Card style={styles.savingsCard}>
+      <Card
+        style={
+          styles.savingsCard
+        }
+      >
         <Card.Content>
-          <Text style={styles.label}>
-            Monthly Savings
+          <Text
+            style={styles.label}
+          >
+            Net Savings
           </Text>
 
           <Text
@@ -394,185 +623,293 @@ export default function ReportsScreen() {
                 : styles.expense
             }
           >
-            {formatMoney(savings)}
+            {savings >= 0
+              ? "+"
+              : "-"}
+            {formatMoney(
+              Math.abs(savings)
+            )}
           </Text>
 
           <Text
             variant="bodySmall"
-            style={styles.secondary}
+            style={styles.label}
           >
-            Income minus expenses
+            Savings rate{" "}
+            {Math.round(
+              savingsRate
+            )}
+            %
           </Text>
         </Card.Content>
       </Card>
 
-      {/* ================================== */}
+      {/* ================================= */}
       {/* CATEGORY */}
-      {/* ================================== */}
+      {/* ================================= */}
 
       <Text
-        variant="titleLarge"
-        style={styles.sectionTitle}
+        variant="titleMedium"
+        style={
+          styles.sectionTitle
+        }
       >
         Expense by Category
       </Text>
 
-      {categoryExpenses.length ===
-      0 ? (
-        <Card style={styles.emptyCard}>
-          <Card.Content>
-            <Text style={styles.emptyText}>
-              No expenses this month.
+      <Card
+        style={styles.card}
+      >
+        <Card.Content>
+          {categoryExpenses.length ===
+          0 ? (
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              No expenses for{" "}
+              {monthName}.
             </Text>
-          </Card.Content>
-        </Card>
-      ) : (
-        <Card style={styles.listCard}>
-          {categoryExpenses.map(
-            (item, index) => {
-              const percentage =
-                maxCategoryExpense >
-                0
-                  ? (item.amount /
-                      maxCategoryExpense) *
-                    100
-                  : 0;
+          ) : (
+            categoryExpenses.map(
+              (
+                category,
+                index
+              ) => {
+                const percentage =
+                  monthlyExpense >
+                  0
+                    ? category.amount /
+                      monthlyExpense
+                    : 0;
 
-              return (
-                <View
-                  key={
-                    item.category
-                  }
-                >
+                return (
                   <View
-                    style={
-                      styles.itemRow
+                    key={
+                      category.id
                     }
                   >
                     <View
                       style={
-                        styles.itemInfo
+                        styles.categoryHeader
                       }
                     >
-                      <Text variant="titleMedium">
+                      <Text>
                         {
-                          item.category
+                          category.name
                         }
                       </Text>
 
-                      <View
+                      <Text
                         style={
-                          styles.progressBackground
+                          styles.bold
                         }
                       >
-                        <View
-                          style={[
-                            styles.progress,
-                            {
-                              width: `${percentage}%`,
-                            },
-                          ]}
-                        />
-                      </View>
+                        {formatMoney(
+                          category.amount
+                        )}
+                      </Text>
+                    </View>
+
+                    <ProgressBar
+                      progress={
+                        percentage
+                      }
+                      style={
+                        styles.progress
+                      }
+                    />
+
+                    <Text
+                      variant="bodySmall"
+                      style={
+                        styles.percentage
+                      }
+                    >
+                      {Math.round(
+                        percentage *
+                          100
+                      )}
+                      %
+                    </Text>
+
+                    {index <
+                      categoryExpenses.length -
+                        1 && (
+                      <Divider
+                        style={
+                          styles.divider
+                        }
+                      />
+                    )}
+                  </View>
+                );
+              }
+            )
+          )}
+        </Card.Content>
+      </Card>
+
+      {/* ================================= */}
+      {/* ACCOUNT ACTIVITY */}
+      {/* ================================= */}
+
+      <Text
+        variant="titleMedium"
+        style={
+          styles.sectionTitle
+        }
+      >
+        Account Activity
+      </Text>
+
+      <Card
+        style={styles.card}
+      >
+        <Card.Content>
+          {accountActivity.length ===
+          0 ? (
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              No account activity
+              for {monthName}.
+            </Text>
+          ) : (
+            accountActivity.map(
+              (
+                account,
+                index
+              ) => (
+                <View
+                  key={
+                    account.id
+                  }
+                >
+                  <View
+                    style={
+                      styles.accountHeader
+                    }
+                  >
+                    <View
+                      style={
+                        styles.accountName
+                      }
+                    >
+                      <View
+                        style={[
+                          styles.accountDot,
+                          {
+                            backgroundColor:
+                              account.color,
+                          },
+                        ]}
+                      />
+
+                      <Text
+                        variant="bodyLarge"
+                      >
+                        {
+                          account.name
+                        }
+                      </Text>
                     </View>
 
                     <Text
-                      variant="titleMedium"
+                      style={[
+                        styles.bold,
+                        account.net >=
+                        0
+                          ? styles.income
+                          : styles.expense,
+                      ]}
+                    >
+                      {account.net >=
+                      0
+                        ? "+"
+                        : "-"}
+                      {formatMoney(
+                        Math.abs(
+                          account.net
+                        )
+                      )}
+                    </Text>
+                  </View>
+
+                  <View
+                    style={
+                      styles.accountDetails
+                    }
+                  >
+                    <Text
+                      variant="bodySmall"
+                      style={
+                        styles.income
+                      }
+                    >
+                      Income{" "}
+                      {formatMoney(
+                        account.monthlyIncome
+                      )}
+                    </Text>
+
+                    <Text
+                      variant="bodySmall"
                       style={
                         styles.expense
                       }
                     >
+                      Expense{" "}
                       {formatMoney(
-                        item.amount
+                        account.monthlyExpense
                       )}
                     </Text>
                   </View>
 
                   {index <
-                    categoryExpenses.length -
+                    accountActivity.length -
                       1 && (
-                    <Divider />
+                    <Divider
+                      style={
+                        styles.divider
+                      }
+                    />
                   )}
                 </View>
-              );
-            }
-          )}
-        </Card>
-      )}
-
-      {/* ================================== */}
-      {/* ACCOUNT */}
-      {/* ================================== */}
-
-      <Text
-        variant="titleLarge"
-        style={styles.sectionTitle}
-      >
-        Expense by Account
-      </Text>
-
-      {accountExpenses.length ===
-      0 ? (
-        <Card style={styles.emptyCard}>
-          <Card.Content>
-            <Text style={styles.emptyText}>
-              No account expenses
-              this month.
-            </Text>
-          </Card.Content>
-        </Card>
-      ) : (
-        <Card style={styles.listCard}>
-          {accountExpenses.map(
-            (item, index) => (
-              <View key={item.accountId}>
-                <View
-                  style={
-                    styles.itemRow
-                  }
-                >
-                  <Text variant="titleMedium">
-                    {item.name}
-                  </Text>
-
-                  <Text
-                    variant="titleMedium"
-                    style={
-                      styles.expense
-                    }
-                  >
-                    {formatMoney(
-                      item.amount
-                    )}
-                  </Text>
-                </View>
-
-                {index <
-                  accountExpenses.length -
-                    1 && (
-                  <Divider />
-                )}
-              </View>
+              )
             )
           )}
-        </Card>
-      )}
+        </Card.Content>
+      </Card>
 
-      {/* ================================== */}
-      {/* MONTH TRANSACTION COUNT */}
-      {/* ================================== */}
+      {/* ================================= */}
+      {/* TRANSACTION COUNT */}
+      {/* ================================= */}
 
-      <Card style={styles.countCard}>
+      <Card
+        style={
+          styles.transactionCard
+        }
+      >
         <Card.Content>
-          <Text style={styles.label}>
-            Transactions this month
+          <Text
+            variant="bodyMedium"
+            style={styles.label}
+          >
+            Transactions in{" "}
+            {monthName}
           </Text>
 
           <Text
             variant="headlineSmall"
-            style={styles.count}
+            style={styles.bold}
           >
-            {monthTransactions.length}
+            {
+              monthTransactions.length
+            }
           </Text>
         </Card.Content>
       </Card>
@@ -584,125 +921,169 @@ export default function ReportsScreen() {
 // STYLES
 // ========================================
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+const styles =
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
 
-  content: {
-    padding: 16,
-    paddingBottom: 40,
-  },
+    content: {
+      padding: 16,
+      paddingBottom: 40,
+    },
 
-  title: {
-    fontWeight: "700",
-  },
+    title: {
+      fontWeight: "700",
+      marginBottom: 16,
+    },
 
-  month: {
-    color: "#777",
-    marginTop: 4,
-    marginBottom: 20,
-  },
+    monthCard: {
+      borderRadius: 16,
+      marginBottom: 12,
+    },
 
-  balanceCard: {
-    borderRadius: 18,
-    marginBottom: 12,
-  },
+    monthSelector: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent:
+        "space-between",
+    },
 
-  balance: {
-    fontWeight: "700",
-    marginTop: 8,
-  },
+    monthCenter: {
+      alignItems: "center",
+    },
 
-  label: {
-    color: "#777",
-  },
+    monthText: {
+      fontWeight: "600",
+    },
 
-  summaryRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
+    currentText: {
+      color: "#2563EB",
+      marginTop: 2,
+    },
 
-  summaryCard: {
-    flex: 1,
-    borderRadius: 16,
-  },
+    balanceCard: {
+      borderRadius: 18,
+      marginBottom: 20,
+    },
 
-  income: {
-    color: "#2E7D32",
-    fontWeight: "700",
-    marginTop: 6,
-  },
+    balance: {
+      fontWeight: "700",
+      marginTop: 4,
+    },
 
-  expense: {
-    color: "#D32F2F",
-    fontWeight: "700",
-    marginTop: 6,
-  },
+    label: {
+      color: "#777",
+    },
 
-  savingsCard: {
-    marginTop: 12,
-    borderRadius: 16,
-  },
+    sectionTitle: {
+      fontWeight: "600",
+      marginBottom: 10,
+    },
 
-  secondary: {
-    color: "#777",
-    marginTop: 4,
-  },
+    summaryRow: {
+      flexDirection: "row",
+      gap: 12,
+    },
 
-  sectionTitle: {
-    marginTop: 24,
-    marginBottom: 12,
-    fontWeight: "600",
-  },
+    summaryCard: {
+      flex: 1,
+      borderRadius: 14,
+    },
 
-  listCard: {
-    borderRadius: 16,
-    overflow: "hidden",
-  },
+    incomeCard: {
+      borderLeftWidth: 4,
+      borderLeftColor:
+        "#16A34A",
+    },
 
-  itemRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-  },
+    expenseCard: {
+      borderLeftWidth: 4,
+      borderLeftColor:
+        "#D32F2F",
+    },
 
-  itemInfo: {
-    flex: 1,
-    marginRight: 16,
-  },
+    income: {
+      color: "#16A34A",
+      fontWeight: "700",
+    },
 
-  progressBackground: {
-    height: 6,
-    backgroundColor: "#E5E7EB",
-    borderRadius: 3,
-    marginTop: 8,
-    overflow: "hidden",
-  },
+    expense: {
+      color: "#D32F2F",
+      fontWeight: "700",
+    },
 
-  progress: {
-    height: 6,
-    backgroundColor: "#2563EB",
-    borderRadius: 3,
-  },
+    savingsCard: {
+      borderRadius: 14,
+      marginTop: 12,
+      marginBottom: 22,
+    },
 
-  emptyCard: {
-    borderRadius: 16,
-  },
+    card: {
+      borderRadius: 14,
+      marginBottom: 22,
+    },
 
-  emptyText: {
-    textAlign: "center",
-    color: "#777",
-  },
+    categoryHeader: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+    },
 
-  countCard: {
-    marginTop: 24,
-    borderRadius: 16,
-  },
+    progress: {
+      marginTop: 8,
+      height: 7,
+      borderRadius: 5,
+    },
 
-  count: {
-    fontWeight: "700",
-    marginTop: 6,
-  },
-});
+    percentage: {
+      color: "#777",
+      marginTop: 4,
+    },
+
+    divider: {
+      marginVertical: 12,
+    },
+
+    bold: {
+      fontWeight: "700",
+    },
+
+    accountHeader: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+    },
+
+    accountName: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+    },
+
+    accountDot: {
+      width: 12,
+      height: 12,
+      borderRadius: 6,
+    },
+
+    accountDetails: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      marginTop: 8,
+    },
+
+    emptyText: {
+      color: "#777",
+      textAlign: "center",
+      paddingVertical: 10,
+    },
+
+    transactionCard: {
+      borderRadius: 14,
+      marginBottom: 10,
+    },
+  });

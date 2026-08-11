@@ -1,85 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { Category } from "../features/categories/types/category";
+import {
+  Category,
+} from "../features/categories/types/category";
 
-const STORAGE_KEY = "moneyflow_categories";
-
-const DEFAULT_CATEGORIES: Category[] = [
-  {
-    id: "food",
-    name: "Food",
-    icon: "food",
-    color: "#FF9800",
-    type: "expense",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "travel",
-    name: "Travel",
-    icon: "car",
-    color: "#2196F3",
-    type: "expense",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "shopping",
-    name: "Shopping",
-    icon: "shopping",
-    color: "#9C27B0",
-    type: "expense",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "bills",
-    name: "Bills",
-    icon: "receipt",
-    color: "#F44336",
-    type: "expense",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "emi",
-    name: "EMI",
-    icon: "credit-card",
-    color: "#795548",
-    type: "expense",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "salary",
-    name: "Salary",
-    icon: "cash",
-    color: "#4CAF50",
-    type: "income",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-  {
-    id: "other-income",
-    name: "Other Income",
-    icon: "cash-plus",
-    color: "#009688",
-    type: "income",
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+const STORAGE_KEY =
+  "moneyflow_categories";
 
 export class LocalCategoryRepository {
-  private async save(
-    categories: Category[]
-  ): Promise<void> {
-    await AsyncStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(categories)
-    );
-  }
-
   async getAll(): Promise<Category[]> {
     const data =
       await AsyncStorage.getItem(
@@ -87,21 +15,18 @@ export class LocalCategoryRepository {
       );
 
     if (!data) {
-      await this.save(
-        DEFAULT_CATEGORIES
-      );
-
-      return DEFAULT_CATEGORIES;
+      return [];
     }
 
     try {
-      return JSON.parse(data);
-    } catch {
-      await this.save(
-        DEFAULT_CATEGORIES
-      );
+      const parsed =
+        JSON.parse(data);
 
-      return DEFAULT_CATEGORIES;
+      return Array.isArray(parsed)
+        ? parsed
+        : [];
+    } catch {
+      return [];
     }
   }
 
@@ -113,7 +38,10 @@ export class LocalCategoryRepository {
 
     categories.push(category);
 
-    await this.save(categories);
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(categories)
+    );
   }
 
   async update(
@@ -134,9 +62,13 @@ export class LocalCategoryRepository {
       );
     }
 
-    categories[index] = category;
+    categories[index] =
+      category;
 
-    await this.save(categories);
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(categories)
+    );
   }
 
   async delete(
@@ -147,9 +79,13 @@ export class LocalCategoryRepository {
 
     const filtered =
       categories.filter(
-        (item) => item.id !== id
+        (item) =>
+          item.id !== id
       );
 
-    await this.save(filtered);
+    await AsyncStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(filtered)
+    );
   }
 }

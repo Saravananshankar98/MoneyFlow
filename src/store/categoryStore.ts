@@ -1,7 +1,12 @@
 import { create } from "zustand";
 
-import { Category } from "../features/categories/types/category";
-import { LocalCategoryRepository } from "../repositories/category";
+import {
+  Category,
+} from "../features/categories/types/category";
+
+import {
+  LocalCategoryRepository,
+} from "../repositories/category";
 
 interface CategoryState {
   categories: Category[];
@@ -11,90 +16,221 @@ interface CategoryState {
 
   addCategory: (
     category: Category
-  ) => Promise<void>;
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
 
   updateCategory: (
     category: Category
-  ) => Promise<void>;
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
 
   deleteCategory: (
     id: string
-  ) => Promise<void>;
+  ) => Promise<{
+    success: boolean;
+    error?: string;
+  }>;
 }
 
 const repository =
   new LocalCategoryRepository();
 
 export const useCategoryStore =
-  create<CategoryState>((set) => ({
-    categories: [],
-    loading: false,
+  create<CategoryState>(
+    (set) => ({
+      categories: [],
 
-    loadCategories: async () => {
-      set({
-        loading: true,
-      });
+      loading: false,
 
-      try {
-        const categories =
-          await repository.getAll();
+      // ==================================
+      // LOAD
+      // ==================================
 
-        set({
-          categories,
-          loading: false,
-        });
-      } catch (error) {
-        console.error(
-          "Failed to load categories:",
-          error
-        );
+      loadCategories:
+        async () => {
+          set({
+            loading: true,
+          });
 
-        set({
-          loading: false,
-        });
-      }
-    },
+          try {
+            const categories =
+              await repository.getAll();
 
-    addCategory: async (
-      category
-    ) => {
-      await repository.add(
-        category
-      );
+            set({
+              categories,
+              loading: false,
+            });
+          } catch (error) {
+            console.error(
+              "Failed to load categories:",
+              error
+            );
 
-      const categories =
-        await repository.getAll();
+            set({
+              loading: false,
+            });
+          }
+        },
 
-      set({
-        categories,
-      });
-    },
+      // ==================================
+      // ADD
+      // ==================================
 
-    updateCategory: async (
-      category
-    ) => {
-      await repository.update(
-        category
-      );
+      addCategory:
+        async (
+          category
+        ) => {
+          try {
+            const existing =
+              await repository.getAll();
 
-      const categories =
-        await repository.getAll();
+            const duplicate =
+              existing.some(
+                (item) =>
+                  item.name
+                    .trim()
+                    .toLowerCase() ===
+                  category.name
+                    .trim()
+                    .toLowerCase()
+              );
 
-      set({
-        categories,
-      });
-    },
+            if (duplicate) {
+              return {
+                success: false,
+                error:
+                  "Category already exists",
+              };
+            }
 
-    deleteCategory: async (
-      id
-    ) => {
-      await repository.delete(id);
+            await repository.add(
+              category
+            );
 
-      const categories =
-        await repository.getAll();
+            const categories =
+              await repository.getAll();
 
-      set({
-        categories,
-      });
-    },
-  }));
+            set({
+              categories,
+            });
+
+            return {
+              success: true,
+            };
+          } catch (error) {
+            console.error(
+              "Failed to add category:",
+              error
+            );
+
+            return {
+              success: false,
+              error:
+                "Unable to add category",
+            };
+          }
+        },
+
+      // ==================================
+      // UPDATE
+      // ==================================
+
+      updateCategory:
+        async (
+          category
+        ) => {
+          try {
+            const existing =
+              await repository.getAll();
+
+            const duplicate =
+              existing.some(
+                (item) =>
+                  item.id !==
+                    category.id &&
+                  item.name
+                    .trim()
+                    .toLowerCase() ===
+                    category.name
+                      .trim()
+                      .toLowerCase()
+              );
+
+            if (duplicate) {
+              return {
+                success: false,
+                error:
+                  "Category already exists",
+              };
+            }
+
+            await repository.update(
+              category
+            );
+
+            const categories =
+              await repository.getAll();
+
+            set({
+              categories,
+            });
+
+            return {
+              success: true,
+            };
+          } catch (error) {
+            console.error(
+              "Failed to update category:",
+              error
+            );
+
+            return {
+              success: false,
+              error:
+                "Unable to update category",
+            };
+          }
+        },
+
+      // ==================================
+      // DELETE
+      // ==================================
+
+      deleteCategory:
+        async (
+          id
+        ) => {
+          try {
+            await repository.delete(
+              id
+            );
+
+            const categories =
+              await repository.getAll();
+
+            set({
+              categories,
+            });
+
+            return {
+              success: true,
+            };
+          } catch (error) {
+            console.error(
+              "Failed to delete category:",
+              error
+            );
+
+            return {
+              success: false,
+              error:
+                "Unable to delete category",
+            };
+          }
+        },
+    })
+  );
