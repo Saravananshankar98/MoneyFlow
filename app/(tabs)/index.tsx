@@ -17,6 +17,7 @@ import {
   Divider,
   Icon,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { useFocusEffect } from "expo-router";
@@ -26,8 +27,11 @@ import { useTransactionStore } from "../../src/store/transactionStore";
 
 import ExpenseModal from "../../src/features/transactions/components/ExpenseModal";
 import IncomeModal from "../../src/features/transactions/components/IncomeModal";
+import TransferModal from "../../src/features/transactions/components/TransferModal";
 
 export default function DashboardScreen() {
+  const theme = useTheme();
+
   const {
     accounts,
     loadAccounts,
@@ -47,6 +51,10 @@ export default function DashboardScreen() {
     expenseVisible,
     setExpenseVisible,
   ] = useState(false);
+const [
+  transferVisible,
+  setTransferVisible,
+] = useState(false);
 
   const [
     incomeVisible,
@@ -264,7 +272,13 @@ export default function DashboardScreen() {
   return (
     <>
       <ScrollView
-        style={styles.container}
+        style={[
+          styles.container,
+          {
+            backgroundColor:
+              theme.colors.background,
+          },
+        ]}
         contentContainerStyle={
           styles.content
         }
@@ -611,6 +625,20 @@ export default function DashboardScreen() {
             }
           >
             Add Income
+          </Button>
+
+          <Button
+            mode="contained"
+            icon="swap-horizontal"
+            style={
+              styles.actionButton
+            }
+            buttonColor="#2563EB"
+            onPress={() =>
+              setTransferVisible(true)
+            }
+          >
+            Transfer
           </Button>
         </View>
 
@@ -977,6 +1005,15 @@ export default function DashboardScreen() {
           )
         }
       />
+
+      <TransferModal
+        visible={transferVisible}
+        transaction={null}
+        onDismiss={() =>
+          setTransferVisible(false)
+        }
+      />
+
     </>
   );
 }

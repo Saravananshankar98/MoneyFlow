@@ -5,20 +5,28 @@ import {
   Dialog,
   Portal,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { useAccountStore } from "../../../store";
+import { useNotificationStore } from "../../../store/notificationStore";
 import { Account } from "../types/account";
 
 import AccountList from "../components/AccountList";
 import AccountModal from "../components/AccountModal";
 
 export default function AccountsScreen() {
+  const theme = useTheme();
+
   const {
     accounts,
     loadAccounts,
     deleteAccount,
   } = useAccountStore();
+
+  const {
+    showNotification,
+  } = useNotificationStore();
 
   const [modalVisible, setModalVisible] =
     useState(false);
@@ -56,12 +64,25 @@ export default function AccountsScreen() {
       return;
     }
 
-    await deleteAccount(accountToDelete.id);
+    try {
+      await deleteAccount(accountToDelete.id);
 
-    setDeleteDialogVisible(false);
-    setAccountToDelete(null);
+      setDeleteDialogVisible(false);
+      setAccountToDelete(null);
 
-    await loadAccounts();
+      await loadAccounts();
+
+      showNotification(
+        "Account deleted successfully.",
+        "success"
+      );
+    } catch (error) {
+      console.error("Account delete failed:", error);
+      showNotification(
+        "Unable to delete account.",
+        "error"
+      );
+    }
   };
 
   const handleModalDismiss = () => {
@@ -71,7 +92,15 @@ export default function AccountsScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor:
+            theme.colors.background,
+        },
+      ]}
+    >
       <AccountList
         accounts={accounts}
         onEdit={handleEdit}

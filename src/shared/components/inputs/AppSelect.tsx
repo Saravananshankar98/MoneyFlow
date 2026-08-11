@@ -4,9 +4,11 @@ import {
   View,
 } from "react-native";
 import {
+  Icon,
   Menu,
   Text,
   TouchableRipple,
+  useTheme,
 } from "react-native-paper";
 
 interface Option {
@@ -29,6 +31,7 @@ export default function AppSelect({
   placeholder = "Select",
   onChange,
 }: Props) {
+  const theme = useTheme();
   const [visible, setVisible] =
     useState(false);
 
@@ -38,7 +41,15 @@ export default function AppSelect({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>
+      <Text
+        style={[
+          styles.label,
+          {
+            color:
+              theme.colors.onSurfaceVariant,
+          },
+        ]}
+      >
         {label}
       </Text>
 
@@ -49,23 +60,43 @@ export default function AppSelect({
           <TouchableRipple
             onPress={() => setVisible(true)}
             borderless
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                borderColor:
+                  theme.colors.outline,
+                backgroundColor:
+                  theme.colors.surface,
+              },
+            ]}
           >
             <View style={styles.inputContent}>
               <Text
-                style={
-                  selectedOption
-                    ? styles.value
-                    : styles.placeholder
-                }
+                style={[
+                  styles.value,
+                  {
+                    color: selectedOption
+                      ? theme.colors.onSurface
+                      : theme.colors.onSurfaceVariant,
+                  },
+                ]}
+                numberOfLines={1}
               >
                 {selectedOption?.label ??
                   placeholder}
               </Text>
 
-              <Text style={styles.arrow}>
-                ▼
-              </Text>
+              <Icon
+                source={
+                  visible
+                    ? "chevron-up"
+                    : "chevron-down"
+                }
+                size={22}
+                color={
+                  theme.colors.onSurfaceVariant
+                }
+              />
             </View>
           </TouchableRipple>
         }
@@ -93,14 +124,12 @@ const styles = StyleSheet.create({
   label: {
     marginBottom: 6,
     fontSize: 13,
-    color: "#49454F",
   },
 
   input: {
     height: 56,
     borderWidth: 1,
-    borderColor: "#79747E",
-    borderRadius: 4,
+    borderRadius: 8,
     justifyContent: "center",
   },
 
@@ -109,20 +138,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 14,
+    gap: 10,
   },
 
   value: {
+    flex: 1,
     fontSize: 16,
-    color: "#1D1B20",
-  },
-
-  placeholder: {
-    fontSize: 16,
-    color: "#79747E",
-  },
-
-  arrow: {
-    fontSize: 12,
-    color: "#49454F",
   },
 });

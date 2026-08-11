@@ -14,6 +14,7 @@ import {
   SegmentedButtons,
   Text,
   TextInput,
+  useTheme,
 } from "react-native-paper";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,6 +25,7 @@ import {
 } from "../types/category";
 
 import { useCategoryStore } from "../../../store/categoryStore";
+import { useNotificationStore } from "../../../store/notificationStore";
 
 const categorySchema = z.object({
   name: z
@@ -63,10 +65,16 @@ export default function CategoryModal({
   category,
   onDismiss,
 }: Props) {
+  const theme = useTheme();
+
   const {
     addCategory,
     updateCategory,
   } = useCategoryStore();
+
+  const {
+    showNotification,
+  } = useNotificationStore();
 
   const isEdit = Boolean(category);
 
@@ -120,14 +128,28 @@ export default function CategoryModal({
       new Date().toISOString();
 
     if (category) {
-      await updateCategory({
+      const result =
+        await updateCategory({
         ...category,
         name: data.name,
         icon: data.icon,
         color: data.color,
         type: data.type as CategoryType,
         updatedAt: now,
-      });
+        });
+
+      if (!result.success) {
+        showNotification(
+          result.error ?? "Unable to update category.",
+          "error"
+        );
+        return;
+      }
+
+      showNotification(
+        "Category updated successfully.",
+        "success"
+      );
     } else {
       const newCategory: Category = {
         id: Date.now().toString(),
@@ -139,8 +161,22 @@ export default function CategoryModal({
         updatedAt: now,
       };
 
-      await addCategory(
-        newCategory
+      const result =
+        await addCategory(
+          newCategory
+        );
+
+      if (!result.success) {
+        showNotification(
+          result.error ?? "Unable to add category.",
+          "error"
+        );
+        return;
+      }
+
+      showNotification(
+        "Category added successfully.",
+        "success"
       );
     }
 
@@ -154,7 +190,8 @@ export default function CategoryModal({
         visible={visible}
         onDismiss={onDismiss}
         contentContainerStyle={{
-          backgroundColor: "white",
+          backgroundColor:
+            theme.colors.surface,
           margin: 20,
           borderRadius: 20,
           maxHeight: "90%",

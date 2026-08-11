@@ -17,6 +17,7 @@ import {
   IconButton,
   ProgressBar,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { useFocusEffect } from "expo-router";
@@ -26,6 +27,8 @@ import { useCategoryStore } from "../../src/store/categoryStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
 
 export default function ReportsScreen() {
+  const theme = useTheme();
+
   const {
     transactions,
     loadTransactions,
@@ -413,7 +416,13 @@ export default function ReportsScreen() {
 
   return (
     <ScrollView
-      style={styles.container}
+      style={[
+        styles.container,
+        {
+          backgroundColor:
+            theme.colors.background,
+        },
+      ]}
       contentContainerStyle={
         styles.content
       }

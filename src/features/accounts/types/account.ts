@@ -3,7 +3,11 @@ export type AccountType =
   | "Current"
   | "Cash"
   | "Credit Card"
-  | "UPI";
+  | "Wallet"
+  | "Investment"
+  | "Loan"
+  | "UPI"
+  | "Other";
 
 export interface Account {
   id: string;
@@ -15,6 +19,18 @@ export interface Account {
   color: string;
 
   type: AccountType;
+
+  /**
+   * Credit card maximum spending limit.
+   * Used only when type === "Credit Card".
+   */
+  creditLimit?: number;
+
+  /**
+   * Amount currently owed on the credit card.
+   * Used only when type === "Credit Card".
+   */
+  outstanding?: number;
 
   createdAt: string;
 

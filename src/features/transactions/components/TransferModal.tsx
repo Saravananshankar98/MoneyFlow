@@ -24,8 +24,6 @@ import {
 
 import { Picker } from "../../../shared/components/inputs/PaperPicker";
 
-import * as DocumentPicker from "expo-document-picker";
-
 import {
   DatePickerModal,
   TimePickerModal,
@@ -38,23 +36,17 @@ import {
 } from "../../../store/transactionStore";
 
 import {
-  useCategoryStore,
-} from "../../../store/categoryStore";
-
-import {
   useNotificationStore,
 } from "../../../store/notificationStore";
 
-
 import {
-  expenseSchema,
-  type ExpenseForm,
+  transferSchema,
+  type TransferForm,
 } from "../validation/transactionSchema";
 
 import type {
   Transaction,
 } from "../types/transaction";
-import CategoryPicker from "../../categories/components/CategoryPickerModal";
 
 interface Props {
   visible: boolean;
@@ -66,28 +58,22 @@ interface Props {
   onDismiss: () => void;
 }
 
-const DEFAULT_FORM_VALUES: ExpenseForm =
+const DEFAULT_FORM_VALUES: TransferForm =
   {
     amount: 0,
 
-    details: "",
+    details: "Transfer",
 
     accountId: "",
 
-    paymentType: "",
-
-    category: "",
+    toAccountId: "",
 
     notes: "",
-
-    attachmentUri: "",
-
-    attachmentName: "",
 
     date: new Date().toISOString(),
   };
 
-export default function ExpenseModal({
+export default function TransferModal({
   visible,
 
   transaction,
@@ -96,8 +82,12 @@ export default function ExpenseModal({
 }: Props) {
   const theme = useTheme();
 
+  const {
+    showNotification,
+  } = useNotificationStore();
+
   // ========================================
-  // PICKER STATE
+  // DATE / TIME PICKER STATE
   // ========================================
 
   const [
@@ -111,28 +101,25 @@ export default function ExpenseModal({
   ] = useState(false);
 
   // ========================================
-  // STORES
+  // ACCOUNT STORE
   // ========================================
 
   const {
     accounts,
+
     loadAccounts,
   } = useAccountStore();
 
+  // ========================================
+  // TRANSACTION STORE
+  // ========================================
+
   const {
     addTransaction,
+
     updateTransaction,
   } =
     useTransactionStore();
-
-  const {
-    loadCategories,
-  } =
-    useCategoryStore();
-
-  const {
-    showNotification,
-  } = useNotificationStore();
 
   // ========================================
   // FORM
@@ -153,10 +140,10 @@ export default function ExpenseModal({
       errors,
     },
   } =
-    useForm<ExpenseForm>({
+    useForm<TransferForm>({
       resolver:
         zodResolver(
-          expenseSchema
+          transferSchema
         ),
 
       defaultValues:
@@ -178,7 +165,7 @@ export default function ExpenseModal({
       : new Date();
 
   // ========================================
-  // LOAD DATA
+  // LOAD ACCOUNTS / EDIT DATA
   // ========================================
 
   useEffect(() => {
@@ -188,10 +175,8 @@ export default function ExpenseModal({
 
     loadAccounts();
 
-    loadCategories();
-
     // ======================================
-    // EDIT
+    // EDIT MODE
     // ======================================
 
     if (transaction) {
@@ -200,29 +185,18 @@ export default function ExpenseModal({
           transaction.amount,
 
         details:
-          transaction.details,
+          transaction.details ||
+          "Transfer",
 
         accountId:
           transaction.accountId,
 
-        paymentType:
-          transaction.paymentType ??
-          "",
-
-        category:
-          transaction.category ??
+        toAccountId:
+          transaction.toAccountId ??
           "",
 
         notes:
           transaction.notes ??
-          "",
-
-        attachmentUri:
-          transaction.attachmentUri ??
-          "",
-
-        attachmentName:
-          transaction.attachmentName ??
           "",
 
         date:
@@ -234,7 +208,7 @@ export default function ExpenseModal({
     }
 
     // ======================================
-    // ADD
+    // ADD MODE
     // ======================================
 
     reset({
@@ -245,14 +219,16 @@ export default function ExpenseModal({
     });
   }, [
     visible,
+
     transaction,
+
     reset,
+
     loadAccounts,
-    loadCategories,
   ]);
 
   // ========================================
-  // DATE PICKER
+  // DATE CONFIRM
   // ========================================
 
   const handleDateConfirm = ({
@@ -274,9 +250,7 @@ export default function ExpenseModal({
     const updated =
       new Date(date);
 
-    /*
-     * Keep existing time
-     */
+    // Keep current time
     updated.setHours(
       current.getHours()
     );
@@ -298,20 +272,23 @@ export default function ExpenseModal({
       updated.toISOString(),
       {
         shouldDirty: true,
+
         shouldValidate: true,
       }
     );
   };
 
   // ========================================
-  // TIME PICKER
+  // TIME CONFIRM
   // ========================================
 
   const handleTimeConfirm = ({
     hours,
+
     minutes,
   }: {
     hours: number;
+
     minutes: number;
   }) => {
     setTimePickerVisible(false);
@@ -321,27 +298,20 @@ export default function ExpenseModal({
         selectedDate
       );
 
-    updated.setHours(
-      hours
-    );
+    updated.setHours(hours);
 
-    updated.setMinutes(
-      minutes
-    );
+    updated.setMinutes(minutes);
 
-    updated.setSeconds(
-      0
-    );
+    updated.setSeconds(0);
 
-    updated.setMilliseconds(
-      0
-    );
+    updated.setMilliseconds(0);
 
     setValue(
       "date",
       updated.toISOString(),
       {
         shouldDirty: true,
+
         shouldValidate: true,
       }
     );
@@ -351,256 +321,214 @@ export default function ExpenseModal({
   // FORMAT DATE
   // ========================================
 
-  const formatDate =
-    (date: Date) => {
-      return date.toLocaleDateString(
-        "en-GB",
-        {
-          day: "2-digit",
+  const formatDate = (
+    date: Date
+  ) => {
+    return date.toLocaleDateString(
+      "en-GB",
+      {
+        day: "2-digit",
 
-          month: "2-digit",
+        month: "2-digit",
 
-          year: "numeric",
-        }
-      );
-    };
+        year: "numeric",
+      }
+    );
+  };
 
   // ========================================
   // FORMAT TIME
   // ========================================
 
-  const formatTime =
-    (date: Date) => {
-      return date.toLocaleTimeString(
-        "en-IN",
-        {
-          hour: "2-digit",
+  const formatTime = (
+    date: Date
+  ) => {
+    return date.toLocaleTimeString(
+      "en-IN",
+      {
+        hour: "2-digit",
 
-          minute: "2-digit",
+        minute: "2-digit",
 
-          hour12: true,
-        }
-      );
-    };
+        hour12: true,
+      }
+    );
+  };
 
   // ========================================
   // SUBMIT
   // ========================================
 
   const onSubmit = async (
-    data: ExpenseForm
+    data: TransferForm
   ) => {
-    try {
-      // ====================================
-      // EDIT
-      // ====================================
+    const now =
+      new Date().toISOString();
 
-      if (transaction) {
-        const result =
-          await updateTransaction({
-          ...transaction,
+    // ======================================
+    // SAME ACCOUNT CHECK
+    // ======================================
 
-          type: "expense",
-
-          amount:
-            data.amount,
-
-          details:
-            data.details,
-
-          accountId:
-            data.accountId,
-
-          paymentType:
-            data.paymentType as any,
-
-          category:
-            data.category,
-
-          notes:
-            data.notes,
-
-          attachmentUri:
-            data.attachmentUri,
-
-          attachmentName:
-            data.attachmentName,
-
-          date:
-            data.date,
-
-          updatedAt:
-            new Date().toISOString(),
-          });
-
-        if (!result.success) {
-          showNotification(
-            result.error ??
-              "Unable to update expense.",
-            "error"
-          );
-
-          return;
-        }
-
-        await loadAccounts();
-
-        reset(
-          DEFAULT_FORM_VALUES
-        );
-
-        onDismiss();
-
-        showNotification(
-          "Expense updated successfully.",
-          "success"
-        );
-
-        return;
-      }
-
-      // ====================================
-      // ADD
-      // ====================================
-
-      const result =
-        await addTransaction({
-          id:
-            Date.now().toString(),
-
-          type: "expense",
-
-          amount:
-            data.amount,
-
-          details:
-            data.details,
-
-          accountId:
-            data.accountId,
-
-          paymentType:
-            data.paymentType as any,
-
-          category:
-            data.category,
-
-          notes:
-            data.notes,
-
-          attachmentUri:
-            data.attachmentUri,
-
-          attachmentName:
-            data.attachmentName,
-
-          date:
-            data.date,
-
-          createdAt:
-            new Date().toISOString(),
-
-          updatedAt:
-            new Date().toISOString(),
-        });
-
-      if (!result.success) {
-        showNotification(
-          result.error ??
-            "Unable to save expense.",
-          "error"
-        );
-
-        return;
-      }
-
-      await loadAccounts();
-
-      reset(
-        DEFAULT_FORM_VALUES
-      );
-
-      onDismiss();
-
+    if (
+      data.accountId ===
+      data.toAccountId
+    ) {
       showNotification(
-        "Expense saved successfully.",
-        "success"
-      );
-    } catch (error) {
-      console.error(
-        "Expense submit error:",
-        error
-      );
-
-      showNotification(
-        "Something went wrong while saving the expense.",
+        "From Account and To Account must be different.",
         "error"
       );
+
+      return;
     }
-  };
 
-  // ========================================
-  // ATTACHMENT
-  // ========================================
+    // ======================================
+    // SOURCE ACCOUNT
+    // ======================================
 
-  const handlePickAttachment =
-    async () => {
-      try {
-        const result =
-          await DocumentPicker.getDocumentAsync(
-            {
-              copyToCacheDirectory:
-                true,
+    const sourceAccount =
+      accounts.find(
+        (account) =>
+          account.id ===
+          data.accountId
+      );
 
-              multiple: false,
-            }
+    if (!sourceAccount) {
+      showNotification(
+        "Please select a From Account.",
+        "error"
+      );
+
+      return;
+    }
+
+    // ======================================
+    // DESTINATION ACCOUNT
+    // ======================================
+
+    const destinationAccount =
+      accounts.find(
+        (account) =>
+          account.id ===
+          data.toAccountId
+      );
+
+    if (!destinationAccount) {
+      showNotification(
+        "Please select a To Account.",
+        "error"
+      );
+
+      return;
+    }
+
+    // ======================================
+    // AMOUNT CHECK
+    // ======================================
+
+    if (
+      data.amount <= 0
+    ) {
+      showNotification(
+        "Amount must be greater than zero.",
+        "error"
+      );
+
+      return;
+    }
+
+    // ======================================
+    // ADD / EDIT PAYLOAD
+    // ======================================
+
+    const payload: Transaction =
+      {
+        id:
+          transaction?.id ??
+          Date.now().toString(),
+
+        type: "transfer",
+
+        amount:
+          data.amount,
+
+        details:
+          data.details ||
+          "Transfer",
+
+        accountId:
+          data.accountId,
+
+        toAccountId:
+          data.toAccountId,
+
+        notes:
+          data.notes,
+
+        date:
+          data.date,
+
+        createdAt:
+          transaction?.createdAt ??
+          now,
+
+        updatedAt:
+          now,
+      };
+
+    // ======================================
+    // SAVE
+    // ======================================
+
+    const result =
+      transaction
+        ? await updateTransaction(
+            payload
+          )
+        : await addTransaction(
+            payload
           );
 
-        if (
-          result.canceled
-        ) {
-          return;
-        }
+    // ======================================
+    // ERROR
+    // ======================================
 
-        const asset =
-          result.assets?.[0];
+    if (!result.success) {
+      showNotification(
+        result.error ??
+          "Unable to save transfer.",
+        "error"
+      );
 
-        if (!asset) {
-          return;
-        }
+      return;
+    }
 
-        setValue(
-          "attachmentUri",
-          asset.uri,
-          {
-            shouldDirty: true,
-          }
-        );
+    // ======================================
+    // SUCCESS
+    // ======================================
 
-        setValue(
-          "attachmentName",
-          asset.name,
-          {
-            shouldDirty: true,
-          }
-        );
-      } catch (error) {
-        console.error(
-          "Attachment error:",
-          error
-        );
+    await loadAccounts();
 
-        showNotification(
-          "Unable to select attachment.",
-          "error"
-        );
-      }
-    };
-
-  const attachmentName =
-    watch(
-      "attachmentName"
+    reset(
+      DEFAULT_FORM_VALUES
     );
+
+    setDatePickerVisible(
+      false
+    );
+
+    setTimePickerVisible(
+      false
+    );
+
+    onDismiss();
+
+    showNotification(
+      transaction
+        ? "Transfer updated successfully."
+        : "Transfer saved successfully.",
+      "success"
+    );
+  };
 
   // ========================================
   // DISMISS
@@ -623,13 +551,81 @@ export default function ExpenseModal({
   };
 
   // ========================================
+  // ACCOUNT PICKER
+  // ========================================
+
+  const renderAccountPicker = (
+    field: {
+      value: string;
+
+      onChange: (
+        value: string
+      ) => void;
+    },
+
+    label: string,
+
+    excludeAccountId?: string
+  ) => (
+    <View
+      style={
+        styles.pickerContainer
+      }
+    >
+      <Text
+        style={
+          styles.pickerLabel
+        }
+      >
+        {label}
+      </Text>
+
+      <Picker
+        selectedValue={
+          field.value
+        }
+        onValueChange={
+          field.onChange
+        }
+      >
+        <Picker.Item
+          label="Select account"
+          value=""
+        />
+
+        {accounts
+          .filter(
+            (account) =>
+              account.id !==
+              excludeAccountId
+          )
+          .map(
+            (account) => (
+              <Picker.Item
+                key={
+                  account.id
+                }
+                label={`${account.name} - ₹${account.balance.toLocaleString(
+                  "en-IN"
+                )}`}
+                value={
+                  account.id
+                }
+              />
+            )
+          )}
+      </Picker>
+    </View>
+  );
+
+  // ========================================
   // UI
   // ========================================
 
   return (
     <Portal>
       {/* ================================== */}
-      {/* EXPENSE MODAL */}
+      {/* MODAL */}
       {/* ================================== */}
 
       <Modal
@@ -639,6 +635,7 @@ export default function ExpenseModal({
         }
         contentContainerStyle={[
           styles.modal,
+
           {
             backgroundColor:
               theme.colors.surface,
@@ -663,8 +660,8 @@ export default function ExpenseModal({
             style={styles.title}
           >
             {transaction
-              ? "Edit Expense"
-              : "Add Expense"}
+              ? "Edit Transfer"
+              : "Transfer Money"}
           </Text>
 
           {/* ============================== */}
@@ -754,6 +751,7 @@ export default function ExpenseModal({
               <TextInput
                 mode="outlined"
                 label="Amount"
+                placeholder="0"
                 keyboardType="numeric"
                 value={
                   field.value ===
@@ -827,7 +825,7 @@ export default function ExpenseModal({
               <TextInput
                 mode="outlined"
                 label="Details"
-                placeholder="Breakfast"
+                placeholder="Transfer"
                 value={
                   field.value
                 }
@@ -859,7 +857,7 @@ export default function ExpenseModal({
           />
 
           {/* ============================== */}
-          {/* ACCOUNT */}
+          {/* FROM ACCOUNT */}
           {/* ============================== */}
 
           <Controller
@@ -867,53 +865,12 @@ export default function ExpenseModal({
             name="accountId"
             render={({
               field,
-            }) => (
-              <View
-                style={
-                  styles.pickerContainer
-                }
-              >
-                <Text
-                  style={
-                    styles.pickerLabel
-                  }
-                >
-                  Account
-                </Text>
-
-                <Picker
-                  selectedValue={
-                    field.value
-                  }
-                  onValueChange={
-                    field.onChange
-                  }
-                >
-                  <Picker.Item
-                    label="Select account"
-                    value=""
-                  />
-
-                  {accounts.map(
-                    (
-                      account
-                    ) => (
-                      <Picker.Item
-                        key={
-                          account.id
-                        }
-                        label={`${account.name} - ₹${account.balance.toLocaleString(
-                          "en-IN"
-                        )}`}
-                        value={
-                          account.id
-                        }
-                      />
-                    )
-                  )}
-                </Picker>
-              </View>
-            )}
+            }) =>
+              renderAccountPicker(
+                field,
+                "From Account"
+              )
+            }
           />
 
           {errors.accountId
@@ -937,81 +894,29 @@ export default function ExpenseModal({
           />
 
           {/* ============================== */}
-          {/* PAYMENT TYPE */}
+          {/* TO ACCOUNT */}
           {/* ============================== */}
 
           <Controller
             control={control}
-            name="paymentType"
+            name="toAccountId"
             render={({
               field,
-            }) => (
-              <View
-                style={
-                  styles.pickerContainer
-                }
-              >
-                <Text
-                  style={
-                    styles.pickerLabel
-                  }
-                >
-                  Payment Type
-                </Text>
+            }) => {
+              const fromAccountId =
+                watch(
+                  "accountId"
+                );
 
-                <Picker
-                  selectedValue={
-                    field.value
-                  }
-                  onValueChange={
-                    field.onChange
-                  }
-                >
-                  <Picker.Item
-                    label="Select payment type"
-                    value=""
-                  />
-
-                  <Picker.Item
-                    label="Cash"
-                    value="Cash"
-                  />
-
-                  <Picker.Item
-                    label="UPI"
-                    value="UPI"
-                  />
-
-                  <Picker.Item
-                    label="Debit Card"
-                    value="Debit Card"
-                  />
-
-                  <Picker.Item
-                    label="Credit Card"
-                    value="Credit Card"
-                  />
-
-                  <Picker.Item
-                    label="Net Banking"
-                    value="Net Banking"
-                  />
-
-                  <Picker.Item
-                    label="Cheque"
-                    value="Cheque"
-                  />
-
-                  <Picker.Item
-                    label="Wallet"
-                    value="Wallet"
-                  />
-                </Picker>
-              </View>
-            )}
+              return renderAccountPicker(
+                field,
+                "To Account",
+                fromAccountId
+              );
+            }}
           />
 
-          {errors.paymentType
+          {errors.toAccountId
             ?.message && (
             <Text
               style={
@@ -1019,54 +924,11 @@ export default function ExpenseModal({
               }
             >
               {
-                errors
-                  .paymentType
+                errors.toAccountId
                   .message
               }
             </Text>
           )}
-
-          <View
-            style={
-              styles.spacing
-            }
-          />
-
-          {/* ============================== */}
-          {/* CATEGORY */}
-          {/* ============================== */}
-
-          <Text
-            variant="labelLarge"
-            style={
-              styles.fieldLabel
-            }
-          >
-            Category
-          </Text>
-
-          <Controller
-            control={control}
-            name="category"
-            render={({
-              field,
-            }) => (
-              <CategoryPicker
-                value={
-                  field.value ??
-                  ""
-                }
-                onChange={
-                  field.onChange
-                }
-                error={
-                  errors.category
-                    ?.message
-                }
-                type="expense"
-              />
-            )}
-          />
 
           <View
             style={
@@ -1117,28 +979,6 @@ export default function ExpenseModal({
 
           <View
             style={
-              styles.spacing
-            }
-          />
-
-          {/* ============================== */}
-          {/* ATTACHMENT */}
-          {/* ============================== */}
-
-          <Button
-            mode="outlined"
-            icon="paperclip"
-            onPress={
-              handlePickAttachment
-            }
-          >
-            {attachmentName
-              ? attachmentName
-              : "Add Attachment"}
-          </Button>
-
-          <View
-            style={
               styles.buttonSpacing
             }
           />
@@ -1149,13 +989,14 @@ export default function ExpenseModal({
 
           <Button
             mode="contained"
+            icon="swap-horizontal"
             onPress={handleSubmit(
               onSubmit
             )}
           >
             {transaction
-              ? "Update Expense"
-              : "Save Expense"}
+              ? "Update Transfer"
+              : "Save Transfer"}
           </Button>
         </ScrollView>
       </Modal>
@@ -1261,17 +1102,10 @@ const styles =
       marginTop: 4,
     },
 
-    fieldLabel: {
-      color: "#49454F",
-
-      marginBottom: 6,
-    },
-
     pickerContainer: {
       borderWidth: 1,
 
-      borderColor:
-        "#79747E",
+      borderColor: "#79747E",
 
       borderRadius: 4,
 

@@ -5,6 +5,7 @@ import {
 } from "react";
 
 import {
+  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -20,6 +21,7 @@ import {
   IconButton,
   Searchbar,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import {
@@ -38,16 +40,23 @@ import {
   useCategoryStore,
 } from "../../src/store/categoryStore";
 
+import {
+  useNotificationStore,
+} from "../../src/store/notificationStore";
+
 import ExpenseModal from "../../src/features/transactions/components/ExpenseModal";
 
 import IncomeModal from "../../src/features/transactions/components/IncomeModal";
+
+import TransferModal from "../../src/features/transactions/components/TransferModal";
 
 import { Transaction } from "../../src/features/transactions/types/transaction";
 
 type FilterType =
   | "all"
   | "income"
-  | "expense";
+  | "expense"
+  | "transfer";
 
 type GroupedTransactions = {
   title: string;
@@ -55,24 +64,31 @@ type GroupedTransactions = {
 };
 
 export default function TransactionsScreen() {
+  const theme = useTheme();
+
   const {
     transactions,
     loadTransactions,
     deleteTransaction,
-  } =
-    useTransactionStore();
+  } = useTransactionStore();
 
   const {
     accounts,
     loadAccounts,
-  } =
-    useAccountStore();
+  } = useAccountStore();
 
   const {
     categories,
     loadCategories,
-  } =
-    useCategoryStore();
+  } = useCategoryStore();
+
+  const {
+    showNotification,
+  } = useNotificationStore();
+
+  // ========================================
+  // STATE
+  // ========================================
 
   const [
     search,
@@ -98,6 +114,11 @@ export default function TransactionsScreen() {
   const [
     incomeVisible,
     setIncomeVisible,
+  ] = useState(false);
+
+  const [
+    transferVisible,
+    setTransferVisible,
   ] = useState(false);
 
   const [
@@ -139,13 +160,15 @@ export default function TransactionsScreen() {
     async () => {
       setRefreshing(true);
 
-      await loadData();
-
-      setRefreshing(false);
+      try {
+        await loadData();
+      } finally {
+        setRefreshing(false);
+      }
     };
 
   // ========================================
-  // FORMAT MONEY
+  // MONEY
   // ========================================
 
   const formatMoney = (
@@ -157,7 +180,7 @@ export default function TransactionsScreen() {
   };
 
   // ========================================
-  // GET ACCOUNT
+  // ACCOUNT
   // ========================================
 
   const getAccountName = (
@@ -173,7 +196,7 @@ export default function TransactionsScreen() {
   };
 
   // ========================================
-  // GET CATEGORY
+  // CATEGORY
   // ========================================
 
   const getCategoryName = (
@@ -189,13 +212,12 @@ export default function TransactionsScreen() {
           category.id ===
           categoryId
       )?.name ??
-      categoryId ??
       "Other"
     );
   };
 
   // ========================================
-  // FILTER
+  // FILTER + SEARCH
   // ========================================
 
   const filteredTransactions =
@@ -208,15 +230,16 @@ export default function TransactionsScreen() {
       return transactions
         .filter(
           (transaction) => {
+            // Type filter
             if (
-              filter !==
-                "all" &&
+              filter !== "all" &&
               transaction.type !==
                 filter
             ) {
               return false;
             }
 
+            // Search
             if (!query) {
               return true;
             }
@@ -231,12 +254,31 @@ export default function TransactionsScreen() {
                 transaction.category
               );
 
+            const paymentType =
+              transaction.paymentType ??
+              "";
+
+            const details =
+              transaction.details ??
+              "";
+
+            const notes =
+              transaction.notes ??
+              "";
+
+            const toAccountName =
+              transaction.toAccountId
+                ? getAccountName(
+                    transaction.toAccountId
+                  )
+                : "";
+
             return (
-              transaction.details
-                ?.toLowerCase()
+              details
+                .toLowerCase()
                 .includes(query) ||
-              transaction.notes
-                ?.toLowerCase()
+              notes
+                .toLowerCase()
                 .includes(query) ||
               accountName
                 .toLowerCase()
@@ -244,8 +286,11 @@ export default function TransactionsScreen() {
               categoryName
                 .toLowerCase()
                 .includes(query) ||
-              transaction.paymentType
-                ?.toLowerCase()
+              paymentType
+                .toLowerCase()
+                .includes(query) ||
+              toAccountName
+                .toLowerCase()
                 .includes(query)
             );
           }
@@ -330,7 +375,7 @@ export default function TransactionsScreen() {
   };
 
   // ========================================
-  // GROUP TRANSACTIONS
+  // GROUP
   // ========================================
 
   const groupedTransactions =
@@ -415,245 +460,355 @@ export default function TransactionsScreen() {
   // DELETE
   // ========================================
 
-  const handleDelete =
-    async (
-      transaction: Transaction
-    ) => {
-      await deleteTransaction(
-        transaction.id
-      );
+  const handleDelete = (
+    transaction: Transaction
+  ) => {
+    Alert.alert(
+      "Delete Transaction",
+      `Are you sure you want to delete "${transaction.details || "this transaction"}"?`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            const result =
+              await deleteTransaction(
+                transaction.id
+              );
 
-      await loadData();
-    };
+            if (
+              !result.success
+            ) {
+              showNotification(
+                result.error ??
+                  "Unable to delete transaction.",
+                "error"
+              );
+
+              return;
+            }
+
+            await loadData();
+
+            showNotification(
+              "Transaction deleted successfully.",
+              "success"
+            );
+          },
+        },
+      ]
+    );
+  };
 
   // ========================================
   // EDIT
   // ========================================
 
-  const handleEdit =
-    (
-      transaction: Transaction
-    ) => {
-      setSelectedTransaction(
-        transaction
-      );
+  const handleEdit = (
+    transaction: Transaction
+  ) => {
+    setSelectedTransaction(
+      transaction
+    );
 
-      if (
-        transaction.type ===
-        "expense"
-      ) {
-        setExpenseVisible(
-          true
-        );
-      } else {
-        setIncomeVisible(
-          true
-        );
-      }
-    };
-
-  // ========================================
-  // CLOSE MODAL
-  // ========================================
-
-  const closeExpense =
-    () => {
+    if (
+      transaction.type ===
+      "expense"
+    ) {
       setExpenseVisible(
-        false
+        true
       );
 
-      setSelectedTransaction(
-        null
-      );
+      return;
+    }
 
-      loadData();
-    };
-
-  const closeIncome =
-    () => {
+    if (
+      transaction.type ===
+      "income"
+    ) {
       setIncomeVisible(
-        false
+        true
       );
 
-      setSelectedTransaction(
-        null
-      );
+      return;
+    }
 
-      loadData();
-    };
+    if (
+      transaction.type ===
+      "transfer"
+    ) {
+      setTransferVisible(
+        true
+      );
+    }
+  };
+
+  // ========================================
+  // CLOSE EXPENSE
+  // ========================================
+
+  const closeExpense = () => {
+    setExpenseVisible(
+      false
+    );
+
+    setSelectedTransaction(
+      null
+    );
+
+    loadData();
+  };
+
+  // ========================================
+  // CLOSE INCOME
+  // ========================================
+
+  const closeIncome = () => {
+    setIncomeVisible(
+      false
+    );
+
+    setSelectedTransaction(
+      null
+    );
+
+    loadData();
+  };
+
+  // ========================================
+  // CLOSE TRANSFER
+  // ========================================
+
+  const closeTransfer = () => {
+    setTransferVisible(
+      false
+    );
+
+    setSelectedTransaction(
+      null
+    );
+
+    loadData();
+  };
 
   // ========================================
   // TRANSACTION ITEM
   // ========================================
 
-  const renderTransaction =
-    (
-      transaction: Transaction
-    ) => {
-      const isExpense =
-        transaction.type ===
-        "expense";
+  const renderTransaction = (
+    transaction: Transaction
+  ) => {
+    const isExpense =
+      transaction.type ===
+      "expense";
 
-      const accountName =
-        getAccountName(
-          transaction.accountId
-        );
+    const isTransfer =
+      transaction.type ===
+      "transfer";
 
-      const categoryName =
-        getCategoryName(
-          transaction.category
-        );
+    const accountName =
+      getAccountName(
+        transaction.accountId
+      );
 
-      const transactionDate =
-        new Date(
-          transaction.date
-        );
+    const categoryName =
+      getCategoryName(
+        transaction.category
+      );
 
-      return (
+    const transactionDate =
+      new Date(
+        transaction.date
+      );
+
+    const time =
+      transactionDate.toLocaleTimeString(
+        "en-IN",
+        {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      );
+
+    const toAccountName =
+      transaction.toAccountId
+        ? getAccountName(
+            transaction.toAccountId
+          )
+        : "";
+
+    return (
+      <View
+        key={
+          transaction.id
+        }
+      >
         <View
-          key={transaction.id}
+          style={
+            styles.transactionRow
+          }
         >
+          {/* ================================= */}
+          {/* LEFT */}
+          {/* ================================= */}
+
           <View
             style={
-              styles.transactionRow
+              styles.leftSection
             }
           >
-            {/* LEFT */}
             <View
-              style={
-                styles.leftSection
-              }
-            >
-              <View
-                style={[
-                  styles.iconContainer,
-                  {
-                    backgroundColor:
-                      isExpense
+              style={[
+                styles.iconContainer,
+                {
+                  backgroundColor:
+                    isTransfer
+                      ? "#DBEAFE"
+                      : isExpense
                         ? "#FEE2E2"
                         : "#DCFCE7",
-                  },
-                ]}
-              >
-                <Icon
-                  source={
-                    isExpense
+                },
+              ]}
+            >
+              <Icon
+                source={
+                  isTransfer
+                    ? "swap-horizontal"
+                    : isExpense
                       ? "arrow-up"
                       : "arrow-down"
-                  }
-                  size={21}
-                  color={
-                    isExpense
+                }
+                size={21}
+                color={
+                  isTransfer
+                    ? "#2563EB"
+                    : isExpense
                       ? "#D32F2F"
                       : "#16A34A"
-                  }
-                />
-              </View>
-
-              <View
-                style={
-                  styles.transactionInfo
                 }
-              >
-                <Text
-                  variant="titleSmall"
-                  style={
-                    styles.transactionTitle
-                  }
-                  numberOfLines={1}
-                >
-                  {transaction.details ||
-                    "Transaction"}
-                </Text>
-
-                <Text
-                  variant="bodySmall"
-                  style={
-                    styles.secondaryText
-                  }
-                  numberOfLines={1}
-                >
-                  {accountName}
-                  {" • "}
-                  {categoryName}
-                </Text>
-
-                <Text
-                  variant="bodySmall"
-                  style={
-                    styles.dateText
-                  }
-                >
-                  {transactionDate.toLocaleTimeString(
-                    "en-IN",
-                    {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    }
-                  )}
-                  {" • "}
-                  {
-                    transaction.paymentType
-                  }
-                </Text>
-              </View>
+              />
             </View>
 
-            {/* RIGHT */}
             <View
               style={
-                styles.rightSection
+                styles.transactionInfo
               }
             >
               <Text
                 variant="titleSmall"
                 style={
-                  isExpense
-                    ? styles.expense
-                    : styles.income
+                  styles.transactionTitle
                 }
+                numberOfLines={1}
               >
-                {isExpense
-                  ? "-"
-                  : "+"}
-                {formatMoney(
-                  transaction.amount
-                )}
+                {transaction.details ||
+                  "Transaction"}
               </Text>
 
-              <View
+              {/* Account */}
+              <Text
+                variant="bodySmall"
                 style={
-                  styles.actions
+                  styles.secondaryText
                 }
+                numberOfLines={1}
               >
-                <IconButton
-                  icon="pencil-outline"
-                  size={18}
-                  onPress={() =>
-                    handleEdit(
-                      transaction
-                    )
-                  }
-                />
+                {accountName}
 
-                <IconButton
-                  icon="delete-outline"
-                  size={18}
-                  iconColor="#D32F2F"
-                  onPress={() =>
-                    handleDelete(
-                      transaction
-                    )
-                  }
-                />
-              </View>
+                {isTransfer &&
+                toAccountName
+                  ? ` → ${toAccountName}`
+                  : ` • ${categoryName}`}
+              </Text>
+
+              {/* Time + payment */}
+              <Text
+                variant="bodySmall"
+                style={
+                  styles.dateText
+                }
+                numberOfLines={1}
+              >
+                {time}
+
+                {transaction.paymentType
+                  ? ` • ${transaction.paymentType}`
+                  : ""}
+
+                {transaction.notes
+                  ? ` • ${transaction.notes}`
+                  : ""}
+              </Text>
             </View>
           </View>
 
-          <Divider />
+          {/* ================================= */}
+          {/* RIGHT */}
+          {/* ================================= */}
+
+          <View
+            style={
+              styles.rightSection
+            }
+          >
+            <Text
+              variant="titleSmall"
+              style={
+                isExpense
+                  ? styles.expense
+                  : isTransfer
+                    ? styles.transfer
+                    : styles.income
+              }
+            >
+              {isTransfer
+                ? ""
+                : isExpense
+                  ? "-"
+                  : "+"}
+
+              {formatMoney(
+                transaction.amount
+              )}
+            </Text>
+
+            <View
+              style={
+                styles.actions
+              }
+            >
+              <IconButton
+                icon="pencil-outline"
+                size={18}
+                onPress={() =>
+                  handleEdit(
+                    transaction
+                  )
+                }
+              />
+
+              <IconButton
+                icon="delete-outline"
+                size={18}
+                iconColor="#D32F2F"
+                onPress={() =>
+                  handleDelete(
+                    transaction
+                  )
+                }
+              />
+            </View>
+          </View>
         </View>
-      );
-    };
+
+        <Divider />
+      </View>
+    );
+  };
 
   // ========================================
   // UI
@@ -662,7 +817,13 @@ export default function TransactionsScreen() {
   return (
     <>
       <ScrollView
-        style={styles.container}
+        style={[
+          styles.container,
+          {
+            backgroundColor:
+              theme.colors.background,
+          },
+        ]}
         contentContainerStyle={
           styles.content
         }
@@ -729,7 +890,7 @@ export default function TransactionsScreen() {
         />
 
         {/* ================================= */}
-        {/* FILTER */}
+        {/* FILTERS */}
         {/* ================================= */}
 
         <ScrollView
@@ -760,7 +921,9 @@ export default function TransactionsScreen() {
               filter === "income"
             }
             onPress={() =>
-              setFilter("income")
+              setFilter(
+                "income"
+              )
             }
             style={
               styles.chip
@@ -775,7 +938,9 @@ export default function TransactionsScreen() {
               filter === "expense"
             }
             onPress={() =>
-              setFilter("expense")
+              setFilter(
+                "expense"
+              )
             }
             style={
               styles.chip
@@ -783,6 +948,23 @@ export default function TransactionsScreen() {
             icon="arrow-up"
           >
             Expense
+          </Chip>
+
+          <Chip
+            selected={
+              filter === "transfer"
+            }
+            onPress={() =>
+              setFilter(
+                "transfer"
+              )
+            }
+            style={
+              styles.chip
+            }
+            icon="swap-horizontal"
+          >
+            Transfer
           </Chip>
         </ScrollView>
 
@@ -928,10 +1110,6 @@ export default function TransactionsScreen() {
             </Card.Content>
           </Card>
         ) : (
-          /* ================================= */
-          /* GROUPS */
-          /* ================================= */
-
           groupedTransactions.map(
             (group) => (
               <View
@@ -980,7 +1158,7 @@ export default function TransactionsScreen() {
       </ScrollView>
 
       {/* ================================== */}
-      {/* EXPENSE MODAL */}
+      {/* EXPENSE */}
       {/* ================================== */}
 
       <ExpenseModal
@@ -996,7 +1174,7 @@ export default function TransactionsScreen() {
       />
 
       {/* ================================== */}
-      {/* INCOME MODAL */}
+      {/* INCOME */}
       {/* ================================== */}
 
       <IncomeModal
@@ -1008,6 +1186,22 @@ export default function TransactionsScreen() {
         }
         onDismiss={
           closeIncome
+        }
+      />
+
+      {/* ================================== */}
+      {/* TRANSFER */}
+      {/* ================================== */}
+
+      <TransferModal
+        visible={
+          transferVisible
+        }
+        transaction={
+          selectedTransaction
+        }
+        onDismiss={
+          closeTransfer
         }
       />
     </>
@@ -1152,6 +1346,11 @@ const styles =
       fontWeight: "700",
     },
 
+    transfer: {
+      color: "#2563EB",
+      fontWeight: "700",
+    },
+
     bold: {
       fontWeight: "700",
     },
@@ -1175,6 +1374,7 @@ const styles =
       color: "#777",
       textAlign: "center",
       marginTop: 6,
+      textAlignVertical: "center",
     },
 
     clearButton: {

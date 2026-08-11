@@ -1,6 +1,8 @@
-import { useState } from "react";
 import {
-  Alert,
+  useEffect,
+  useState,
+} from "react";
+import {
   ScrollView,
   StyleSheet,
   View,
@@ -20,13 +22,21 @@ import {
   Portal,
   Dialog,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { useAccountStore } from "../../src/store/accountStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
 import { useCategoryStore } from "../../src/store/categoryStore";
+import { useNotificationStore } from "../../src/store/notificationStore";
+import {
+  AppThemeMode,
+  useSettingsStore,
+} from "../../src/store/settingsStore";
 
 export default function SettingsScreen() {
+  const theme = useTheme();
+
   const {
     accounts,
     loadAccounts,
@@ -42,9 +52,23 @@ export default function SettingsScreen() {
     loadCategories,
   } = useCategoryStore();
 
+  const {
+    themeMode,
+    setThemeMode,
+  } = useSettingsStore();
+
+  const {
+    showNotification,
+  } = useNotificationStore();
+
   const [
     resetDialogVisible,
     setResetDialogVisible,
+  ] = useState(false);
+
+  const [
+    themeDialogVisible,
+    setThemeDialogVisible,
   ] = useState(false);
 
   const [
@@ -65,18 +89,60 @@ export default function SettingsScreen() {
   const categoryCount =
     categories.length;
 
+  const themeDescription =
+    themeMode === "system"
+      ? "System default"
+      : themeMode === "dark"
+        ? "Dark"
+        : "Light";
+
   // ========================================
   // RELOAD
   // ========================================
 
   const reloadData =
-    async () => {
-      await Promise.all([
-        loadAccounts(),
-        loadTransactions(),
-        loadCategories(),
-      ]);
+    async (
+      options?: {
+        silent?: boolean;
+      }
+    ) => {
+      try {
+        setLoading(true);
+
+        await Promise.all([
+          loadAccounts(),
+          loadTransactions(),
+          loadCategories(),
+        ]);
+
+        if (!options?.silent) {
+          showNotification(
+            "Accounts, transactions, and categories are up to date.",
+            "success"
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Refresh data failed:",
+          error
+        );
+
+        if (!options?.silent) {
+          showNotification(
+            "Unable to refresh your MoneyFlow data.",
+            "error"
+          );
+        }
+      } finally {
+        setLoading(false);
+      }
     };
+
+  useEffect(() => {
+    reloadData({
+      silent: true,
+    });
+  }, []);
 
   // ========================================
   // RESET DATA
@@ -85,19 +151,19 @@ export default function SettingsScreen() {
   const handleResetData =
   async () => {
     try {
-      setLoading(true);
-
       await resetAllData();
 
-      await reloadData();
+      await reloadData({
+        silent: true,
+      });
 
       setResetDialogVisible(
         false
       );
 
-      Alert.alert(
-        "Data Reset",
-        "All MoneyFlow data has been deleted."
+      showNotification(
+        "All MoneyFlow data has been deleted.",
+        "success"
       );
     } catch (error) {
       console.error(
@@ -105,9 +171,9 @@ export default function SettingsScreen() {
         error
       );
 
-      Alert.alert(
-        "Reset Failed",
-        "Unable to delete your data."
+      showNotification(
+        "Unable to delete your data.",
+        "error"
       );
     } finally {
       setLoading(false);
@@ -122,9 +188,9 @@ export default function SettingsScreen() {
 
       await exportBackup();
 
-      Alert.alert(
-        "Backup Ready",
-        "Your MoneyFlow backup has been created."
+      showNotification(
+        "Your MoneyFlow backup has been created.",
+        "success"
       );
     } catch (error) {
       console.error(
@@ -132,9 +198,9 @@ export default function SettingsScreen() {
         error
       );
 
-      Alert.alert(
-        "Backup Failed",
-        "Unable to create the backup."
+      showNotification(
+        "Unable to create the backup.",
+        "error"
       );
     } finally {
       setLoading(false);
@@ -153,11 +219,13 @@ const handleImportBackup =
         return;
       }
 
-      await reloadData();
+      await reloadData({
+        silent: true,
+      });
 
-      Alert.alert(
-        "Restore Complete",
-        "Your MoneyFlow data has been restored successfully."
+      showNotification(
+        "Your MoneyFlow data has been restored successfully.",
+        "success"
       );
     } catch (error) {
       console.error(
@@ -165,16 +233,34 @@ const handleImportBackup =
         error
       );
 
-      Alert.alert(
-        "Restore Failed",
+      showNotification(
         error instanceof Error
           ? error.message
-          : "Unable to restore backup."
+          : "Unable to restore backup.",
+        "error"
       );
     } finally {
       setLoading(false);
     }
   };
+
+  const handleThemeChange =
+    async (
+      nextThemeMode: AppThemeMode
+    ) => {
+      await setThemeMode(
+        nextThemeMode
+      );
+
+      showNotification(
+        `Theme changed to ${nextThemeMode}.`,
+        "success"
+      );
+
+      setThemeDialogVisible(
+        false
+      );
+    };
 
   // ========================================
   // UI
@@ -183,7 +269,13 @@ const handleImportBackup =
   return (
     <>
       <ScrollView
-        style={styles.container}
+        style={[
+          styles.container,
+          {
+            backgroundColor:
+              theme.colors.background,
+          },
+        ]}
         contentContainerStyle={
           styles.content
         }
@@ -376,7 +468,9 @@ const handleImportBackup =
 
           <List.Item
             title="Theme"
-            description="System default"
+            description={
+              themeDescription
+            }
             left={(props) => (
               <List.Icon
                 {...props}
@@ -384,9 +478,8 @@ const handleImportBackup =
               />
             )}
             onPress={() =>
-              Alert.alert(
-                "Theme",
-                "Theme selection will be added later."
+              setThemeDialogVisible(
+                true
               )
             }
           />
@@ -444,7 +537,9 @@ const handleImportBackup =
             mode="outlined"
             icon="refresh"
             loading={loading}
-            onPress={reloadData}
+            onPress={() =>
+              reloadData()
+            }
           >
             Refresh Data
           </Button>
@@ -530,6 +625,113 @@ const handleImportBackup =
                 }
             >
                Delete Everything
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Portal>
+        <Dialog
+          visible={
+            themeDialogVisible
+          }
+          onDismiss={() =>
+            setThemeDialogVisible(
+              false
+            )
+          }
+        >
+          <Dialog.Title>
+            Choose theme
+          </Dialog.Title>
+
+          <Dialog.Content>
+            <List.Item
+              title="System default"
+              description="Follow your device theme"
+              left={(props) => (
+                <List.Icon
+                  {...props}
+                  icon="theme-light-dark"
+                />
+              )}
+              right={(props) =>
+                themeMode === "system" ? (
+                  <List.Icon
+                    {...props}
+                    icon="check"
+                  />
+                ) : null
+              }
+              onPress={() =>
+                handleThemeChange(
+                  "system"
+                )
+              }
+            />
+
+            <Divider />
+
+            <List.Item
+              title="Light"
+              description="Use light mode"
+              left={(props) => (
+                <List.Icon
+                  {...props}
+                  icon="white-balance-sunny"
+                />
+              )}
+              right={(props) =>
+                themeMode === "light" ? (
+                  <List.Icon
+                    {...props}
+                    icon="check"
+                  />
+                ) : null
+              }
+              onPress={() =>
+                handleThemeChange(
+                  "light"
+                )
+              }
+            />
+
+            <Divider />
+
+            <List.Item
+              title="Dark"
+              description="Use dark mode"
+              left={(props) => (
+                <List.Icon
+                  {...props}
+                  icon="weather-night"
+                />
+              )}
+              right={(props) =>
+                themeMode === "dark" ? (
+                  <List.Icon
+                    {...props}
+                    icon="check"
+                  />
+                ) : null
+              }
+              onPress={() =>
+                handleThemeChange(
+                  "dark"
+                )
+              }
+            />
+          </Dialog.Content>
+
+          <Dialog.Actions>
+            <Button
+              onPress={() =>
+                setThemeDialogVisible(
+                  false
+                )
+              }
+            >
+              Cancel
             </Button>
           </Dialog.Actions>
         </Dialog>

@@ -15,10 +15,12 @@ import {
   IconButton,
   Portal,
   Text,
+  useTheme,
 } from "react-native-paper";
 import { useFocusEffect } from "expo-router";
 
 import { useCategoryStore } from "../src/store/categoryStore";
+import { useNotificationStore } from "../src/store/notificationStore";
 
 import CategoryModal from "../src/features/categories/components/CategoryModal";
 
@@ -27,11 +29,17 @@ import {
 } from "../src/features/categories/types/category";
 
 export default function CategoriesScreen() {
+  const theme = useTheme();
+
   const {
     categories,
     loadCategories,
     deleteCategory,
   } = useCategoryStore();
+
+  const {
+    showNotification,
+  } = useNotificationStore();
 
   const [
     modalVisible,
@@ -88,16 +96,38 @@ export default function CategoriesScreen() {
         return;
       }
 
-      await deleteCategory(
+      const result =
+        await deleteCategory(
         categoryToDelete.id
       );
 
+      if (!result.success) {
+        showNotification(
+          result.error ?? "Unable to delete category.",
+          "error"
+        );
+        return;
+      }
+
       setDeleteDialogVisible(false);
       setCategoryToDelete(null);
+
+      showNotification(
+        "Category deleted successfully.",
+        "success"
+      );
     };
 
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor:
+            theme.colors.background,
+        },
+      ]}
+    >
       <View style={styles.header}>
         <View>
           <Text

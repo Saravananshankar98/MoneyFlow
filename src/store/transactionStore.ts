@@ -31,565 +31,634 @@ interface TransactionState {
 const repository =
   new LocalTransactionRepository();
 
+/**
+ * Returns balance changes caused by a transaction.
+ *
+ * Expense:
+ *   account - amount
+ *
+ * Income:
+ *   account + amount
+ *
+ * Transfer:
+ *   source - amount
+ *   destination + amount
+ */
+function getTransactionDeltas(
+  transaction: Transaction
+): Record<string, number> {
+  const deltas: Record<
+    string,
+    number
+  > = {};
+
+  const addDelta = (
+    accountId: string | undefined,
+    amount: number
+  ) => {
+    if (!accountId) {
+      return;
+    }
+
+    deltas[accountId] =
+      (deltas[accountId] ?? 0) +
+      amount;
+  };
+
+  // ======================================
+  // EXPENSE
+  // ======================================
+
+  if (
+    transaction.type === "expense"
+  ) {
+    addDelta(
+      transaction.accountId,
+      -transaction.amount
+    );
+  }
+
+  // ======================================
+  // INCOME
+  // ======================================
+
+  if (
+    transaction.type === "income"
+  ) {
+    addDelta(
+      transaction.accountId,
+      transaction.amount
+    );
+  }
+
+  // ======================================
+  // TRANSFER
+  // ======================================
+
+  if (
+    transaction.type === "transfer"
+  ) {
+    addDelta(
+      transaction.accountId,
+      -transaction.amount
+    );
+
+    addDelta(
+      transaction.toAccountId,
+      transaction.amount
+    );
+  }
+
+  return deltas;
+}
+
+/**
+ * Applies balance changes to accounts.
+ */
+async function applyBalanceDeltas(
+  deltas: Record<string, number>
+): Promise<TransactionResult> {
+  const accountStore =
+    useAccountStore.getState();
+
+  const accounts =
+    accountStore.accounts;
+
+  const updatedAccounts =
+    new Map(
+      accounts.map((account) => [
+        account.id,
+        account,
+      ])
+    );
+
+  // ======================================
+  // VALIDATE ALL ACCOUNTS FIRST
+  // ======================================
+
+  for (const [
+    accountId,
+    delta,
+  ] of Object.entries(deltas)) {
+    const account =
+      updatedAccounts.get(
+        accountId
+      );
+
+    if (!account) {
+      return {
+        success: false,
+        error:
+          "Account not found",
+      };
+    }
+
+    const newBalance =
+      account.balance + delta;
+
+    if (newBalance < 0) {
+      return {
+        success: false,
+        error: `Insufficient balance in ${account.name}`,
+      };
+    }
+  }
+
+  // ======================================
+  // APPLY CHANGES
+  // ======================================
+
+  for (const [
+    accountId,
+    delta,
+  ] of Object.entries(deltas)) {
+    const account =
+      updatedAccounts.get(
+        accountId
+      );
+
+    if (!account) {
+      continue;
+    }
+
+    await accountStore.updateAccount(
+      {
+        ...account,
+
+        balance:
+          account.balance + delta,
+
+        updatedAt:
+          new Date().toISOString(),
+      }
+    );
+  }
+
+  return {
+    success: true,
+  };
+}
+
 export const useTransactionStore =
-  create<TransactionState>((set) => ({
-    transactions: [],
-    loading: false,
+  create<TransactionState>(
+    (set) => ({
+      transactions: [],
 
-    // ========================================
-    // LOAD TRANSACTIONS
-    // ========================================
+      loading: false,
 
-    loadTransactions: async () => {
-      set({ loading: true });
+      // ====================================
+      // LOAD TRANSACTIONS
+      // ====================================
 
-      try {
-        const transactions =
-          await repository.getAll();
+      loadTransactions:
+        async () => {
+          set({
+            loading: true,
+          });
 
-        set({
-          transactions,
-          loading: false,
-        });
-      } catch (error) {
-        console.error(
-          "Failed to load transactions:",
-          error
-        );
+          try {
+            const transactions =
+              await repository.getAll();
 
-        set({
-          loading: false,
-        });
-      }
-    },
+            set({
+              transactions,
 
-    // ========================================
-    // ADD TRANSACTION
-    // ========================================
+              loading: false,
+            });
+          } catch (error) {
+            console.error(
+              "Failed to load transactions:",
+              error
+            );
 
-    addTransaction: async (
-      transaction
-    ) => {
-      try {
-        const accountStore =
-          useAccountStore.getState();
-
-        const account =
-          accountStore.accounts.find(
-            (item) =>
-              item.id ===
-              transaction.accountId
-          );
-
-        if (!account) {
-          return {
-            success: false,
-            error:
-              "Account not found",
-          };
-        }
-
-        // ====================================
-        // EXPENSE
-        // ====================================
-
-        if (
-          transaction.type ===
-          "expense"
-        ) {
-          if (
-            account.balance <
-            transaction.amount
-          ) {
-            return {
-              success: false,
-              error: `Insufficient balance in ${account.name}`,
-            };
+            set({
+              loading: false,
+            });
           }
+        },
 
-          await accountStore.updateAccount(
-            {
-              ...account,
+      // ====================================
+      // ADD TRANSACTION
+      // ====================================
 
-              balance:
-                account.balance -
-                transaction.amount,
-
-              updatedAt:
-                new Date().toISOString(),
-            }
-          );
-        }
-
-        // ====================================
-        // INCOME
-        // ====================================
-
-        if (
-          transaction.type ===
-          "income"
-        ) {
-          await accountStore.updateAccount(
-            {
-              ...account,
-
-              balance:
-                account.balance +
-                transaction.amount,
-
-              updatedAt:
-                new Date().toISOString(),
-            }
-          );
-        }
-
-        // ====================================
-        // SAVE TRANSACTION
-        // ====================================
-
-        await repository.add(
+      addTransaction:
+        async (
           transaction
-        );
+        ) => {
+          try {
+            // ------------------------------
+            // BASIC VALIDATION
+            // ------------------------------
 
-        const transactions =
-          await repository.getAll();
+            if (
+              transaction.amount <= 0
+            ) {
+              return {
+                success: false,
+                error:
+                  "Amount must be greater than zero",
+              };
+            }
 
-        set({
-          transactions,
-        });
+            // ------------------------------
+            // TRANSFER VALIDATION
+            // ------------------------------
 
-        return {
-          success: true,
-        };
-      } catch (error) {
-        console.error(
-          "Failed to add transaction:",
-          error
-        );
+            if (
+              transaction.type ===
+              "transfer"
+            ) {
+              if (
+                !transaction.toAccountId
+              ) {
+                return {
+                  success: false,
+                  error:
+                    "Transfer account is required",
+                };
+              }
 
-        return {
-          success: false,
-          error:
-            "Unable to save transaction",
-        };
-      }
-    },
+              if (
+                transaction.accountId ===
+                transaction.toAccountId
+              ) {
+                return {
+                  success: false,
+                  error:
+                    "Select two different accounts",
+                };
+              }
+            }
 
-    // ========================================
-    // UPDATE TRANSACTION
-    // ========================================
+            // ------------------------------
+            // CALCULATE BALANCE CHANGES
+            // ------------------------------
 
-    updateTransaction: async (
-      updatedTransaction
-    ) => {
-      try {
-        const accountStore =
-          useAccountStore.getState();
+            const deltas =
+              getTransactionDeltas(
+                transaction
+              );
 
-        // ====================================
-        // FIND OLD TRANSACTION
-        // ====================================
+            // ------------------------------
+            // UPDATE ACCOUNTS
+            // ------------------------------
 
-        const oldTransaction =
-          (
-            await repository.getAll()
-          ).find(
-            (item) =>
-              item.id ===
-              updatedTransaction.id
-          );
+            const balanceResult =
+              await applyBalanceDeltas(
+                deltas
+              );
 
-        if (!oldTransaction) {
-          return {
-            success: false,
-            error:
-              "Transaction not found",
-          };
-        }
+            if (
+              !balanceResult.success
+            ) {
+              return balanceResult;
+            }
 
-        // ====================================
-        // SAME ACCOUNT
-        // ====================================
+            // ------------------------------
+            // SAVE TRANSACTION
+            // ------------------------------
 
-        if (
-          oldTransaction.accountId ===
-          updatedTransaction.accountId
-        ) {
-          const account =
-            accountStore.accounts.find(
-              (item) =>
-                item.id ===
-                updatedTransaction.accountId
+            await repository.add(
+              transaction
             );
 
-          if (!account) {
+            const transactions =
+              await repository.getAll();
+
+            set({
+              transactions,
+            });
+
+            return {
+              success: true,
+            };
+          } catch (error) {
+            console.error(
+              "Failed to add transaction:",
+              error
+            );
+
             return {
               success: false,
               error:
-                "Account not found",
+                "Unable to save transaction",
             };
           }
+        },
 
-          let newBalance =
-            account.balance;
+      // ====================================
+      // UPDATE TRANSACTION
+      // ====================================
 
-          // --------------------------------
-          // OLD EXPENSE
-          // --------------------------------
-
-          if (
-            oldTransaction.type ===
-            "expense"
-          ) {
-            newBalance +=
-              oldTransaction.amount;
-          }
-
-          // --------------------------------
-          // OLD INCOME
-          // --------------------------------
-
-          if (
-            oldTransaction.type ===
-            "income"
-          ) {
-            newBalance -=
-              oldTransaction.amount;
-          }
-
-          // --------------------------------
-          // NEW EXPENSE
-          // --------------------------------
-
-          if (
-            updatedTransaction.type ===
-            "expense"
-          ) {
-            newBalance -=
-              updatedTransaction.amount;
-          }
-
-          // --------------------------------
-          // NEW INCOME
-          // --------------------------------
-
-          if (
-            updatedTransaction.type ===
-            "income"
-          ) {
-            newBalance +=
-              updatedTransaction.amount;
-          }
-
-          // --------------------------------
-          // NEGATIVE BALANCE CHECK
-          // --------------------------------
-
-          if (newBalance < 0) {
-            return {
-              success: false,
-              error: `Insufficient balance in ${account.name}`,
-            };
-          }
-
-          await accountStore.updateAccount(
-            {
-              ...account,
-
-              balance:
-                newBalance,
-
-              updatedAt:
-                new Date().toISOString(),
-            }
-          );
-        }
-
-        // ====================================
-        // ACCOUNT CHANGED
-        // ====================================
-
-        else {
-          const oldAccount =
-            accountStore.accounts.find(
-              (item) =>
-                item.id ===
-                oldTransaction.accountId
-            );
-
-          const newAccount =
-            accountStore.accounts.find(
-              (item) =>
-                item.id ===
-                updatedTransaction.accountId
-            );
-
-          if (!oldAccount) {
-            return {
-              success: false,
-              error:
-                "Old account not found",
-            };
-          }
-
-          if (!newAccount) {
-            return {
-              success: false,
-              error:
-                "New account not found",
-            };
-          }
-
-          let oldAccountBalance =
-            oldAccount.balance;
-
-          let newAccountBalance =
-            newAccount.balance;
-
-          // --------------------------------
-          // REVERSE OLD TRANSACTION
-          // --------------------------------
-
-          if (
-            oldTransaction.type ===
-            "expense"
-          ) {
-            oldAccountBalance +=
-              oldTransaction.amount;
-          }
-
-          if (
-            oldTransaction.type ===
-            "income"
-          ) {
-            oldAccountBalance -=
-              oldTransaction.amount;
-          }
-
-          // --------------------------------
-          // APPLY NEW TRANSACTION
-          // --------------------------------
-
-          if (
-            updatedTransaction.type ===
-            "expense"
-          ) {
-            newAccountBalance -=
-              updatedTransaction.amount;
-          }
-
-          if (
-            updatedTransaction.type ===
-            "income"
-          ) {
-            newAccountBalance +=
-              updatedTransaction.amount;
-          }
-
-          // --------------------------------
-          // CHECK NEW ACCOUNT
-          // --------------------------------
-
-          if (
-            newAccountBalance < 0
-          ) {
-            return {
-              success: false,
-              error: `Insufficient balance in ${newAccount.name}`,
-            };
-          }
-
-          // --------------------------------
-          // UPDATE OLD ACCOUNT
-          // --------------------------------
-
-          await accountStore.updateAccount(
-            {
-              ...oldAccount,
-
-              balance:
-                oldAccountBalance,
-
-              updatedAt:
-                new Date().toISOString(),
-            }
-          );
-
-          // --------------------------------
-          // UPDATE NEW ACCOUNT
-          // --------------------------------
-
-          await accountStore.updateAccount(
-            {
-              ...newAccount,
-
-              balance:
-                newAccountBalance,
-
-              updatedAt:
-                new Date().toISOString(),
-            }
-          );
-        }
-
-        // ====================================
-        // UPDATE TRANSACTION
-        // ====================================
-
-        await repository.update(
+      updateTransaction:
+        async (
           updatedTransaction
-        );
+        ) => {
+          try {
+            // ------------------------------
+            // BASIC VALIDATION
+            // ------------------------------
 
-        const transactions =
-          await repository.getAll();
+            if (
+              updatedTransaction.amount <=
+              0
+            ) {
+              return {
+                success: false,
+                error:
+                  "Amount must be greater than zero",
+              };
+            }
 
-        set({
-          transactions,
-        });
+            // ------------------------------
+            // TRANSFER VALIDATION
+            // ------------------------------
 
-        return {
-          success: true,
-        };
-      } catch (error) {
-        console.error(
-          "Failed to update transaction:",
-          error
-        );
+            if (
+              updatedTransaction.type ===
+              "transfer"
+            ) {
+              if (
+                !updatedTransaction.toAccountId
+              ) {
+                return {
+                  success: false,
+                  error:
+                    "Transfer account is required",
+                };
+              }
 
-        return {
-          success: false,
-          error:
-            "Unable to update transaction",
-        };
-      }
-    },
+              if (
+                updatedTransaction.accountId ===
+                updatedTransaction.toAccountId
+              ) {
+                return {
+                  success: false,
+                  error:
+                    "Select two different accounts",
+                };
+              }
+            }
 
-    // ========================================
-    // DELETE TRANSACTION
-    // ========================================
+            // ------------------------------
+            // FIND OLD TRANSACTION
+            // ------------------------------
 
-    deleteTransaction: async (
-      id
-    ) => {
-      try {
-        const accountStore =
-          useAccountStore.getState();
+            const transactions =
+              await repository.getAll();
 
-        const transactions =
-          await repository.getAll();
+            const oldTransaction =
+              transactions.find(
+                (item) =>
+                  item.id ===
+                  updatedTransaction.id
+              );
 
-        const transaction =
-          transactions.find(
-            (item) =>
-              item.id === id
-          );
+            if (!oldTransaction) {
+              return {
+                success: false,
+                error:
+                  "Transaction not found",
+              };
+            }
 
-        if (!transaction) {
-          return {
-            success: false,
-            error:
-              "Transaction not found",
-          };
-        }
+            // ------------------------------
+            // OLD BALANCE EFFECT
+            // ------------------------------
 
-        const account =
-          accountStore.accounts.find(
-            (item) =>
-              item.id ===
-              transaction.accountId
-          );
+            const oldDeltas =
+              getTransactionDeltas(
+                oldTransaction
+              );
 
-        if (!account) {
-          return {
-            success: false,
-            error:
-              "Account not found",
-          };
-        }
+            // ------------------------------
+            // NEW BALANCE EFFECT
+            // ------------------------------
 
-        let newBalance =
-          account.balance;
+            const newDeltas =
+              getTransactionDeltas(
+                updatedTransaction
+              );
 
-        // ====================================
-        // DELETE EXPENSE
-        // ====================================
+            // ------------------------------
+            // COMBINE DELTAS
+            //
+            // Reverse old transaction
+            // + apply new transaction
+            // ------------------------------
 
-        if (
-          transaction.type ===
-          "expense"
-        ) {
-          newBalance +=
-            transaction.amount;
-        }
+            const combinedDeltas: Record<
+              string,
+              number
+            > = {};
 
-        // ====================================
-        // DELETE INCOME
-        // ====================================
+            // Reverse old
+            Object.entries(
+              oldDeltas
+            ).forEach(
+              ([
+                accountId,
+                delta,
+              ]) => {
+                combinedDeltas[
+                  accountId
+                ] =
+                  (combinedDeltas[
+                    accountId
+                  ] ?? 0) - delta;
+              }
+            );
 
-        if (
-          transaction.type ===
-          "income"
-        ) {
-          newBalance -=
-            transaction.amount;
-        }
+            // Apply new
+            Object.entries(
+              newDeltas
+            ).forEach(
+              ([
+                accountId,
+                delta,
+              ]) => {
+                combinedDeltas[
+                  accountId
+                ] =
+                  (combinedDeltas[
+                    accountId
+                  ] ?? 0) + delta;
+              }
+            );
 
-        // ====================================
-        // NEGATIVE BALANCE
-        // ====================================
+            // ------------------------------
+            // REMOVE ZERO DELTAS
+            // ------------------------------
 
-        if (newBalance < 0) {
-          return {
-            success: false,
-            error:
-              "Unable to delete transaction",
-          };
-        }
+            Object.keys(
+              combinedDeltas
+            ).forEach(
+              (accountId) => {
+                if (
+                  combinedDeltas[
+                    accountId
+                  ] === 0
+                ) {
+                  delete combinedDeltas[
+                    accountId
+                  ];
+                }
+              }
+            );
 
-        // ====================================
-        // UPDATE ACCOUNT
-        // ====================================
+            // ------------------------------
+            // UPDATE BALANCES
+            // ------------------------------
 
-        await accountStore.updateAccount(
-          {
-            ...account,
+            const balanceResult =
+              await applyBalanceDeltas(
+                combinedDeltas
+              );
 
-            balance:
-              newBalance,
+            if (
+              !balanceResult.success
+            ) {
+              return balanceResult;
+            }
 
-            updatedAt:
-              new Date().toISOString(),
+            // ------------------------------
+            // UPDATE TRANSACTION
+            // ------------------------------
+
+            await repository.update(
+              updatedTransaction
+            );
+
+            const latestTransactions =
+              await repository.getAll();
+
+            set({
+              transactions:
+                latestTransactions,
+            });
+
+            return {
+              success: true,
+            };
+          } catch (error) {
+            console.error(
+              "Failed to update transaction:",
+              error
+            );
+
+            return {
+              success: false,
+              error:
+                "Unable to update transaction",
+            };
           }
-        );
+        },
 
-        // ====================================
-        // DELETE TRANSACTION
-        // ====================================
+      // ====================================
+      // DELETE TRANSACTION
+      // ====================================
 
-        await repository.delete(id);
+      deleteTransaction:
+        async (id) => {
+          try {
+            // ------------------------------
+            // FIND TRANSACTION
+            // ------------------------------
 
-        const updatedTransactions =
-          await repository.getAll();
+            const transactions =
+              await repository.getAll();
 
-        set({
-          transactions:
-            updatedTransactions,
-        });
+            const transaction =
+              transactions.find(
+                (item) =>
+                  item.id === id
+              );
 
-        return {
-          success: true,
-        };
-      } catch (error) {
-        console.error(
-          "Failed to delete transaction:",
-          error
-        );
+            if (!transaction) {
+              return {
+                success: false,
+                error:
+                  "Transaction not found",
+              };
+            }
 
-        return {
-          success: false,
-          error:
-            "Unable to delete transaction",
-        };
-      }
-    },
-  }));
+            // ------------------------------
+            // GET CURRENT EFFECT
+            // ------------------------------
+
+            const transactionDeltas =
+              getTransactionDeltas(
+                transaction
+              );
+
+            // ------------------------------
+            // REVERSE TRANSACTION
+            // ------------------------------
+
+            const reverseDeltas: Record<
+              string,
+              number
+            > = {};
+
+            Object.entries(
+              transactionDeltas
+            ).forEach(
+              ([
+                accountId,
+                delta,
+              ]) => {
+                reverseDeltas[
+                  accountId
+                ] = -delta;
+              }
+            );
+
+            // ------------------------------
+            // RESTORE BALANCES
+            // ------------------------------
+
+            const balanceResult =
+              await applyBalanceDeltas(
+                reverseDeltas
+              );
+
+            if (
+              !balanceResult.success
+            ) {
+              return balanceResult;
+            }
+
+            // ------------------------------
+            // DELETE TRANSACTION
+            // ------------------------------
+
+            await repository.delete(
+              id
+            );
+
+            const latestTransactions =
+              await repository.getAll();
+
+            set({
+              transactions:
+                latestTransactions,
+            });
+
+            return {
+              success: true,
+            };
+          } catch (error) {
+            console.error(
+              "Failed to delete transaction:",
+              error
+            );
+
+            return {
+              success: false,
+              error:
+                "Unable to delete transaction",
+            };
+          }
+        },
+    })
+  );

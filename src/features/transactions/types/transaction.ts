@@ -23,11 +23,17 @@ export interface Transaction {
 
   accountId: string;
 
+  toAccountId?: string;
+
   paymentType?: PaymentType;
 
   category?: string;
 
   notes?: string;
+
+  attachmentUri?: string;
+
+  attachmentName?: string;
 
   date: string;
 

@@ -19,9 +19,12 @@ import {
   Portal,
   Text,
   TextInput,
+  useTheme,
 } from "react-native-paper";
 
-import { Picker } from "@react-native-picker/picker";
+import { Picker } from "../../../shared/components/inputs/PaperPicker";
+
+import * as DocumentPicker from "expo-document-picker";
 
 import { useAccountStore } from "../../../store/accountStore";
 
@@ -32,6 +35,10 @@ import {
 import {
   useTransactionStore,
 } from "../../../store/transactionStore";
+
+import {
+  useNotificationStore,
+} from "../../../store/notificationStore";
 
 
 import {
@@ -68,6 +75,10 @@ const DEFAULT_FORM_VALUES: IncomeForm =
 
     notes: "",
 
+    attachmentUri: "",
+
+    attachmentName: "",
+
     date: new Date().toISOString(),
   };
 
@@ -78,6 +89,8 @@ export default function IncomeModal({
 
   onDismiss,
 }: Props) {
+  const theme = useTheme();
+
   // ========================================
   // STORES
   // ========================================
@@ -98,6 +111,10 @@ export default function IncomeModal({
   } =
     useCategoryStore();
 
+  const {
+    showNotification,
+  } = useNotificationStore();
+
   // ========================================
   // FORM
   // ========================================
@@ -108,6 +125,10 @@ export default function IncomeModal({
     handleSubmit,
 
     reset,
+
+    setValue,
+
+    watch,
 
     formState: {
       errors,
@@ -161,6 +182,14 @@ export default function IncomeModal({
 
         notes:
           transaction.notes ??
+          "",
+
+        attachmentUri:
+          transaction.attachmentUri ??
+          "",
+
+        attachmentName:
+          transaction.attachmentName ??
           "",
 
         date:
@@ -228,6 +257,12 @@ export default function IncomeModal({
           notes:
             data.notes,
 
+          attachmentUri:
+            data.attachmentUri,
+
+          attachmentName:
+            data.attachmentName,
+
           date:
             data.date,
 
@@ -241,6 +276,11 @@ export default function IncomeModal({
           result.error
         );
 
+        showNotification(
+          result.error ?? "Unable to update income.",
+          "error"
+        );
+
         return;
       }
 
@@ -251,6 +291,11 @@ export default function IncomeModal({
       );
 
       onDismiss();
+
+      showNotification(
+        "Income updated successfully.",
+        "success"
+      );
 
       return;
     }
@@ -284,6 +329,12 @@ export default function IncomeModal({
         notes:
           data.notes,
 
+        attachmentUri:
+          data.attachmentUri,
+
+        attachmentName:
+          data.attachmentName,
+
         date:
           data.date,
 
@@ -304,6 +355,11 @@ export default function IncomeModal({
         result.error
       );
 
+      showNotification(
+        result.error ?? "Unable to save income.",
+        "error"
+      );
+
       return;
     }
 
@@ -318,7 +374,48 @@ export default function IncomeModal({
     );
 
     onDismiss();
+
+    showNotification(
+      "Income saved successfully.",
+      "success"
+    );
   };
+
+  const handlePickAttachment =
+    async () => {
+      const result =
+        await DocumentPicker.getDocumentAsync(
+          {
+            copyToCacheDirectory:
+              true,
+            multiple: false,
+          }
+        );
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset =
+        result.assets?.[0];
+
+      if (!asset) {
+        return;
+      }
+
+      setValue(
+        "attachmentUri",
+        asset.uri
+      );
+
+      setValue(
+        "attachmentName",
+        asset.name
+      );
+    };
+
+  const attachmentName =
+    watch("attachmentName");
 
   // ========================================
   // DISMISS
@@ -343,9 +440,13 @@ export default function IncomeModal({
         onDismiss={
           handleDismiss
         }
-        contentContainerStyle={
-          styles.modal
-        }
+        contentContainerStyle={[
+          styles.modal,
+          {
+            backgroundColor:
+              theme.colors.surface,
+          },
+        ]}
       >
         <ScrollView
           contentContainerStyle={
@@ -739,6 +840,71 @@ export default function IncomeModal({
           />
 
           {/* ================================= */}
+          {/* DATE */}
+          {/* ================================= */}
+
+          <Controller
+            control={control}
+            name="date"
+            render={({
+              field,
+            }) => (
+              <TextInput
+                mode="outlined"
+                label="Date"
+                placeholder="YYYY-MM-DD"
+                value={
+                  field.value
+                    ? field.value.slice(
+                        0,
+                        10
+                      )
+                    : ""
+                }
+                onChangeText={(
+                  value
+                ) =>
+                  field.onChange(
+                    value
+                      ? new Date(
+                          value
+                        ).toISOString()
+                      : ""
+                  )
+                }
+              />
+            )}
+          />
+
+          <View
+            style={
+              styles.spacing
+            }
+          />
+
+          {/* ================================= */}
+          {/* ATTACHMENT */}
+          {/* ================================= */}
+
+          <Button
+            mode="outlined"
+            icon="paperclip"
+            onPress={
+              handlePickAttachment
+            }
+          >
+            {attachmentName
+              ? attachmentName
+              : "Add Attachment"}
+          </Button>
+
+          <View
+            style={
+              styles.buttonSpacing
+            }
+          />
+
+          {/* ================================= */}
           {/* SAVE */}
           {/* ================================= */}
 
@@ -766,9 +932,6 @@ export default function IncomeModal({
 const styles =
   StyleSheet.create({
     modal: {
-      backgroundColor:
-        "white",
-
       margin: 20,
 
       borderRadius: 20,
