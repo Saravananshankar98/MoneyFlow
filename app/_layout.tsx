@@ -7,14 +7,10 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
 
 import AppProvider from "../src/core/providers/AppProvider";
-import { useEffect } from "react";
 
 
 export default function RootLayout(){
 
-    useEffect(()=>{
-        console.log("testing")
-    },[])
 
     return(
 

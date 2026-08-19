@@ -24,6 +24,14 @@ import { useFocusEffect } from "expo-router";
 
 import { useAccountStore } from "../../src/store/accountStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
+import {
+  formatCreditCardDate,
+  getAvailableLimit,
+  getDaysUntilStatement,
+  getDaysUntilDue,
+  getOutstanding,
+  getPaymentDueDate,
+} from "../../src/features/accounts/utils/creditCard";
 
 import ExpenseModal from "../../src/features/transactions/components/ExpenseModal";
 import IncomeModal from "../../src/features/transactions/components/IncomeModal";
@@ -114,10 +122,67 @@ const [
   const totalBalance =
     useMemo(() => {
       return accounts.reduce(
-        (total, account) =>
-          total + account.balance,
+        (total, account) => {
+          if (
+            account.type ===
+            "Credit Card"
+          ) {
+            return (
+              total -
+              getOutstanding(
+                account
+              )
+            );
+          }
+
+          return (
+            total +
+            account.balance
+          );
+        },
         0
       );
+    }, [accounts]);
+
+  const creditCardReminders =
+    useMemo(() => {
+      return accounts
+        .filter(
+          (account) =>
+            account.type ===
+              "Credit Card" &&
+            getOutstanding(
+              account
+            ) > 0
+        )
+        .map((account) => ({
+          account,
+          daysUntilStatement:
+            getDaysUntilStatement(
+              account
+            ),
+          daysUntilDue:
+            getDaysUntilDue(
+              account
+            ),
+          dueDate:
+            getPaymentDueDate(
+              account
+            ),
+        }))
+        .filter(
+          (item) =>
+            item.daysUntilStatement ===
+              0 ||
+            item.daysUntilDue <= 2
+        )
+        .sort(
+          (a, b) =>
+            a.daysUntilDue -
+              b.daysUntilDue ||
+            a.daysUntilStatement -
+              b.daysUntilStatement
+        );
     }, [accounts]);
 
   // ========================================
@@ -379,6 +444,86 @@ const [
             </Text>
           </Card.Content>
         </Card>
+
+        {creditCardReminders.length >
+          0 && (
+          <Card
+            style={
+              styles.reminderCard
+            }
+          >
+            <Card.Content>
+              <View
+                style={
+                  styles.reminderHeader
+                }
+              >
+                <Icon
+                  source="bell-alert-outline"
+                  size={22}
+                  color="#D97706"
+                />
+
+                <Text
+                  variant="titleMedium"
+                  style={
+                    styles.bold
+                  }
+                >
+                  Credit Card Due
+                </Text>
+              </View>
+
+              {creditCardReminders.map(
+                ({
+                  account,
+                  daysUntilStatement,
+                  daysUntilDue,
+                  dueDate,
+                }) => (
+                  <View
+                    key={
+                      account.id
+                    }
+                    style={
+                      styles.reminderRow
+                    }
+                  >
+                    <Text>
+                      {account.name}
+                    </Text>
+
+                    <Text
+                      style={
+                        styles.reminderAmount
+                      }
+                    >
+                      {formatMoney(
+                        getOutstanding(
+                          account
+                        )
+                      )}{" "}
+                      {formatCreditCardDate(
+                        dueDate
+                      )}{" "}
+                      {daysUntilStatement ===
+                      0
+                        ? "bill generated"
+                        : daysUntilDue < 0
+                        ? `overdue by ${Math.abs(
+                            daysUntilDue
+                          )}d`
+                        : daysUntilDue ===
+                          0
+                        ? "due today"
+                        : `due in ${daysUntilDue}d`}
+                    </Text>
+                  </View>
+                )
+              )}
+            </Card.Content>
+          </Card>
+        )}
 
         {/* ================================= */}
         {/* INCOME / EXPENSE */}
@@ -762,10 +907,52 @@ const [
                         }
                       >
                         {formatMoney(
-                          account.balance
+                          account.type ===
+                            "Credit Card"
+                            ? getOutstanding(
+                                account
+                              )
+                            : account.balance
                         )}
                       </Text>
                     </View>
+
+                    {account.type ===
+                      "Credit Card" && (
+                      <View
+                        style={
+                          styles.creditMeta
+                        }
+                      >
+                        <Text
+                          variant="bodySmall"
+                          style={
+                            styles.secondaryText
+                          }
+                        >
+                          Available{" "}
+                          {formatMoney(
+                            getAvailableLimit(
+                              account
+                            )
+                          )}
+                        </Text>
+
+                        <Text
+                          variant="bodySmall"
+                          style={
+                            styles.secondaryText
+                          }
+                        >
+                          Due{" "}
+                          {formatCreditCardDate(
+                            getPaymentDueDate(
+                              account
+                            )
+                          )}
+                        </Text>
+                      </View>
+                    )}
 
                     {index <
                       accounts.length -
@@ -1065,6 +1252,35 @@ const styles =
       marginBottom: 12,
     },
 
+    reminderCard: {
+      borderRadius: 14,
+      marginBottom: 18,
+      borderLeftWidth: 4,
+      borderLeftColor:
+        "#D97706",
+    },
+
+    reminderHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      marginBottom: 8,
+    },
+
+    reminderRow: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      alignItems: "center",
+      paddingVertical: 5,
+      gap: 12,
+    },
+
+    reminderAmount: {
+      color: "#D97706",
+      fontWeight: "700",
+    },
+
     balanceLabel: {
       color: "#777",
     },
@@ -1215,6 +1431,15 @@ const styles =
         "space-between",
       alignItems: "center",
       paddingVertical: 10,
+    },
+
+    creditMeta: {
+      flexDirection: "row",
+      justifyContent:
+        "space-between",
+      marginLeft: 22,
+      marginTop: -4,
+      marginBottom: 8,
     },
 
     accountLeft: {

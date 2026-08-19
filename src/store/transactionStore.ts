@@ -31,8 +31,13 @@ interface TransactionState {
 const repository =
   new LocalTransactionRepository();
 
+interface AccountDelta {
+  balance: number;
+  outstanding: number;
+}
+
 /**
- * Returns balance changes caused by a transaction.
+ * Returns cash-flow style changes caused by a transaction.
  *
  * Expense:
  *   account - amount
@@ -113,9 +118,37 @@ function getTransactionDeltas(
 }
 
 /**
- * Applies balance changes to accounts.
+ * Converts a cash-flow change into account field changes.
+ *
+ * For credit cards, negative cash flow increases the outstanding bill
+ * and positive cash flow pays it down.
  */
-async function applyBalanceDeltas(
+function getAccountDelta(
+  account: ReturnType<
+    typeof useAccountStore.getState
+  >["accounts"][number],
+  delta: number
+): AccountDelta {
+  if (
+    account.type !==
+    "Credit Card"
+  ) {
+    return {
+      balance: delta,
+      outstanding: 0,
+    };
+  }
+
+  return {
+    balance: -delta,
+    outstanding: -delta,
+  };
+}
+
+/**
+ * Applies account changes.
+ */
+async function applyAccountDeltas(
   deltas: Record<string, number>
 ): Promise<TransactionResult> {
   const accountStore =
@@ -153,13 +186,52 @@ async function applyBalanceDeltas(
       };
     }
 
-    const newBalance =
-      account.balance + delta;
+    const accountDelta =
+      getAccountDelta(
+        account,
+        delta
+      );
 
-    if (newBalance < 0) {
+    const newBalance =
+      account.balance +
+      accountDelta.balance;
+
+    const newOutstanding =
+      (account.outstanding ??
+        account.balance) +
+      accountDelta.outstanding;
+
+    if (
+      account.type !==
+        "Credit Card" &&
+      newBalance < 0
+    ) {
       return {
         success: false,
         error: `Insufficient balance in ${account.name}`,
+      };
+    }
+
+    if (
+      account.type ===
+        "Credit Card" &&
+      newOutstanding < 0
+    ) {
+      return {
+        success: false,
+        error: `Payment exceeds outstanding amount for ${account.name}`,
+      };
+    }
+
+    if (
+      account.type ===
+        "Credit Card" &&
+      newOutstanding >
+        (account.creditLimit ?? 0)
+    ) {
+      return {
+        success: false,
+        error: `Credit limit exceeded for ${account.name}`,
       };
     }
   }
@@ -181,17 +253,36 @@ async function applyBalanceDeltas(
       continue;
     }
 
-    await accountStore.updateAccount(
-      {
-        ...account,
+    const accountDelta =
+      getAccountDelta(
+        account,
+        delta
+      );
 
-        balance:
-          account.balance + delta,
+    const nextOutstanding =
+      (account.outstanding ??
+        account.balance) +
+      accountDelta.outstanding;
 
-        updatedAt:
-          new Date().toISOString(),
-      }
-    );
+    await accountStore.updateAccount({
+      ...account,
+
+      balance:
+        account.type ===
+        "Credit Card"
+          ? nextOutstanding
+          : account.balance +
+            accountDelta.balance,
+
+      outstanding:
+        account.type ===
+        "Credit Card"
+          ? nextOutstanding
+          : account.outstanding,
+
+      updatedAt:
+        new Date().toISOString(),
+    });
   }
 
   return {
@@ -304,7 +395,7 @@ export const useTransactionStore =
             // ------------------------------
 
             const balanceResult =
-              await applyBalanceDeltas(
+              await applyAccountDeltas(
                 deltas
               );
 
@@ -511,7 +602,7 @@ export const useTransactionStore =
             // ------------------------------
 
             const balanceResult =
-              await applyBalanceDeltas(
+              await applyAccountDeltas(
                 combinedDeltas
               );
 
@@ -618,7 +709,7 @@ export const useTransactionStore =
             // ------------------------------
 
             const balanceResult =
-              await applyBalanceDeltas(
+              await applyAccountDeltas(
                 reverseDeltas
               );
 

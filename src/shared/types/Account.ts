@@ -2,8 +2,12 @@ export type AccountType =
   | "Savings"
   | "Current"
   | "Cash"
-  | "CreditCard"
-  | "UPI";
+  | "Credit Card"
+  | "Wallet"
+  | "Investment"
+  | "Loan"
+  | "UPI"
+  | "Other";
 
 export interface Account {
   id: string;
@@ -11,4 +15,9 @@ export interface Account {
   balance: number;
   color: string;
   type: AccountType;
+  creditLimit?: number;
+  outstanding?: number;
+  billingCycleStartDay?: number;
+  billingCycleEndDay?: number;
+  dueDateDay?: number;
 }

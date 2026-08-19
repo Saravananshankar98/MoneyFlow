@@ -14,6 +14,10 @@ import {
 } from "react-native-paper";
 
 import { Account } from "../types/account";
+import {
+  formatCreditCardDate,
+  getPaymentDueDate,
+} from "../utils/creditCard";
 
 interface Props {
   account: Account;
@@ -123,6 +127,31 @@ export default function AccountCard({
       account.type
     ] ??
     ACCOUNT_TYPE_CONFIG.Other;
+
+  const outstanding =
+    account.outstanding ??
+    account.balance;
+
+  const creditLimit =
+    account.creditLimit ?? 0;
+
+  const availableLimit =
+    Math.max(
+      0,
+      creditLimit -
+        outstanding
+    );
+
+  const isCreditCard =
+    account.type ===
+    "Credit Card";
+
+  const dueDateText =
+    formatCreditCardDate(
+      getPaymentDueDate(
+        account
+      )
+    );
 
   return (
     <Card
@@ -280,7 +309,7 @@ export default function AccountCard({
           >
             {account.type ===
             "Credit Card"
-              ? "Current Balance"
+              ? "Outstanding Amount"
               : "Available Balance"}
           </Text>
 
@@ -295,11 +324,61 @@ export default function AccountCard({
             ]}
           >
             ₹
-            {account.balance.toLocaleString(
-              "en-IN"
-            )}
+            {(isCreditCard
+              ? outstanding
+              : account.balance
+            ).toLocaleString("en-IN")}
           </Text>
         </View>
+
+        {isCreditCard && (
+          <View
+            style={
+              styles.creditDetails
+            }
+          >
+            <View>
+              <Text
+                variant="bodySmall"
+                style={
+                  styles.balanceLabel
+                }
+              >
+                Available Limit
+              </Text>
+
+              <Text
+                style={styles.detailAmount}
+              >
+                ₹
+                {availableLimit.toLocaleString(
+                  "en-IN"
+                )}
+              </Text>
+            </View>
+
+            <View
+              style={
+                styles.detailRight
+              }
+            >
+              <Text
+                variant="bodySmall"
+                style={
+                  styles.balanceLabel
+                }
+              >
+                Due Date
+              </Text>
+
+              <Text
+                style={styles.detailAmount}
+              >
+                {dueDateText}
+              </Text>
+            </View>
+          </View>
+        )}
       </Card.Content>
     </Card>
   );
@@ -390,5 +469,24 @@ const styles =
 
     balance: {
       fontWeight: "700",
+    },
+
+    creditDetails: {
+      flexDirection: "row",
+
+      justifyContent:
+        "space-between",
+
+      marginTop: 14,
+    },
+
+    detailRight: {
+      alignItems: "flex-end",
+    },
+
+    detailAmount: {
+      fontWeight: "700",
+
+      marginTop: 3,
     },
   });

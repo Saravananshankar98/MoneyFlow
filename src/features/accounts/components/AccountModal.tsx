@@ -99,6 +99,9 @@ const DEFAULT_FORM_VALUES: AccountForm = {
   type: "Savings",
   creditLimit: 0,
   outstanding: 0,
+  billingCycleStartDay: 1,
+  billingCycleEndDay: 30,
+  dueDateDay: 5,
 };
 
 export default function AccountModal({
@@ -171,7 +174,20 @@ export default function AccountModal({
 
         outstanding:
           account.outstanding ??
+          account.balance ??
           0,
+
+        billingCycleStartDay:
+          account.billingCycleStartDay ??
+          1,
+
+        billingCycleEndDay:
+          account.billingCycleEndDay ??
+          30,
+
+        dueDateDay:
+          account.dueDateDay ??
+          5,
       });
 
       return;
@@ -228,6 +244,9 @@ export default function AccountModal({
 
           return;
         }
+
+        data.balance =
+          data.outstanding;
       }
 
       // ====================================
@@ -240,6 +259,9 @@ export default function AccountModal({
       ) {
         data.creditLimit = 0;
         data.outstanding = 0;
+        data.billingCycleStartDay = 1;
+        data.billingCycleEndDay = 30;
+        data.dueDateDay = 5;
       }
 
       // ====================================
@@ -516,6 +538,150 @@ export default function AccountModal({
                 }
               />
 
+              <View
+                style={
+                  styles.dayRow
+                }
+              >
+                <View
+                  style={
+                    styles.dayItem
+                  }
+                >
+                  <Controller
+                    control={
+                      control
+                    }
+                    name="billingCycleStartDay"
+                    render={({
+                      field,
+                    }) => (
+                      <TextInput
+                        mode="outlined"
+                        label="Cycle Start Day"
+                        placeholder="1"
+                        keyboardType="numeric"
+                        value={String(
+                          field.value
+                        )}
+                        onChangeText={(
+                          text
+                        ) =>
+                          field.onChange(
+                            Number(
+                              text
+                            ) || 1
+                          )
+                        }
+                      />
+                    )}
+                  />
+                </View>
+
+                <View
+                  style={
+                    styles.dayItem
+                  }
+                >
+                  <Controller
+                    control={
+                      control
+                    }
+                    name="billingCycleEndDay"
+                    render={({
+                      field,
+                    }) => (
+                      <TextInput
+                        mode="outlined"
+                        label="Cycle End Day"
+                        placeholder="30"
+                        keyboardType="numeric"
+                        value={String(
+                          field.value
+                        )}
+                        onChangeText={(
+                          text
+                        ) =>
+                          field.onChange(
+                            Number(
+                              text
+                            ) || 1
+                          )
+                        }
+                      />
+                    )}
+                  />
+                </View>
+              </View>
+
+              {(errors.billingCycleStartDay
+                ?.message ||
+                errors.billingCycleEndDay
+                  ?.message) && (
+                <Text
+                  style={
+                    styles.error
+                  }
+                >
+                  {errors
+                    .billingCycleStartDay
+                    ?.message ??
+                    errors
+                      .billingCycleEndDay
+                      ?.message}
+                </Text>
+              )}
+
+              <View
+                style={
+                  styles.spacing
+                }
+              />
+
+              <Controller
+                control={
+                  control
+                }
+                name="dueDateDay"
+                render={({
+                  field,
+                }) => (
+                  <TextInput
+                    mode="outlined"
+                    label="Due Date Day"
+                    placeholder="5"
+                    keyboardType="numeric"
+                    value={String(
+                      field.value
+                    )}
+                    onChangeText={(
+                      text
+                    ) =>
+                      field.onChange(
+                        Number(
+                          text
+                        ) || 1
+                      )
+                    }
+                  />
+                )}
+              />
+
+              {errors.dueDateDay
+                ?.message && (
+                <Text
+                  style={
+                    styles.error
+                  }
+                >
+                  {
+                    errors
+                      .dueDateDay
+                      .message
+                  }
+                </Text>
+              )}
+
               <Controller
                 control={
                   control
@@ -764,5 +930,15 @@ const styles =
       color: "#2563EB",
 
       fontWeight: "700",
+    },
+
+    dayRow: {
+      flexDirection: "row",
+
+      gap: 12,
+    },
+
+    dayItem: {
+      flex: 1,
     },
   });

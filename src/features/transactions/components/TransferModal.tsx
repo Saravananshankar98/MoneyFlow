@@ -47,6 +47,10 @@ import {
 import type {
   Transaction,
 } from "../types/transaction";
+import {
+  getAvailableLimit,
+  getOutstanding,
+} from "../../accounts/utils/creditCard";
 
 interface Props {
   visible: boolean;
@@ -559,7 +563,7 @@ export default function TransferModal({
       value: string;
 
       onChange: (
-        value: string
+        value: string | number
       ) => void;
     },
 
@@ -605,9 +609,22 @@ export default function TransferModal({
                 key={
                   account.id
                 }
-                label={`${account.name} - ₹${account.balance.toLocaleString(
-                  "en-IN"
-                )}`}
+                label={
+                  account.type ===
+                  "Credit Card"
+                    ? `${account.name} - outstanding ₹${getOutstanding(
+                        account
+                      ).toLocaleString(
+                        "en-IN"
+                      )}, available ₹${getAvailableLimit(
+                        account
+                      ).toLocaleString(
+                        "en-IN"
+                      )}`
+                    : `${account.name} - ₹${account.balance.toLocaleString(
+                        "en-IN"
+                      )}`
+                }
                 value={
                   account.id
                 }

@@ -25,6 +25,13 @@ import { useFocusEffect } from "expo-router";
 import { useAccountStore } from "../../src/store/accountStore";
 import { useCategoryStore } from "../../src/store/categoryStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
+import {
+  formatCreditCardDate,
+  getAvailableLimit,
+  getDaysUntilDue,
+  getOutstanding,
+  getPaymentDueDate,
+} from "../../src/features/accounts/utils/creditCard";
 
 export default function ReportsScreen() {
   const theme = useTheme();
@@ -227,10 +234,100 @@ export default function ReportsScreen() {
 
   const totalBalance =
     accounts.reduce(
-      (total, account) =>
-        total + account.balance,
+      (total, account) => {
+        if (
+          account.type ===
+          "Credit Card"
+        ) {
+          return (
+            total -
+            getOutstanding(
+              account
+            )
+          );
+        }
+
+        return (
+          total +
+          account.balance
+        );
+      },
       0
     );
+
+  const creditCardReports =
+    useMemo(() => {
+      return accounts
+        .filter(
+          (account) =>
+            account.type ===
+            "Credit Card"
+        )
+        .map((account) => {
+          const cardSpend =
+            monthTransactions
+              .filter(
+                (transaction) =>
+                  transaction.type ===
+                    "expense" &&
+                  transaction.accountId ===
+                    account.id
+              )
+              .reduce(
+                (
+                  total,
+                  transaction
+                ) =>
+                  total +
+                  transaction.amount,
+                0
+              );
+
+          const cardPayments =
+            monthTransactions
+              .filter(
+                (transaction) =>
+                  transaction.type ===
+                    "transfer" &&
+                  transaction.toAccountId ===
+                    account.id
+              )
+              .reduce(
+                (
+                  total,
+                  transaction
+                ) =>
+                  total +
+                  transaction.amount,
+                0
+              );
+
+          return {
+            ...account,
+            outstanding:
+              getOutstanding(
+                account
+              ),
+            availableLimit:
+              getAvailableLimit(
+                account
+              ),
+            daysUntilDue:
+              getDaysUntilDue(
+                account
+              ),
+            dueDate:
+              getPaymentDueDate(
+                account
+              ),
+            cardSpend,
+            cardPayments,
+          };
+        });
+    }, [
+      accounts,
+      monthTransactions,
+    ]);
 
   // ========================================
   // CATEGORY EXPENSE
@@ -761,6 +858,244 @@ export default function ReportsScreen() {
       </Card>
 
       {/* ================================= */}
+      {/* CREDIT CARDS */}
+      {/* ================================= */}
+
+      <Text
+        variant="titleMedium"
+        style={
+          styles.sectionTitle
+        }
+      >
+        Credit Card Report
+      </Text>
+
+      <Card
+        style={styles.card}
+      >
+        <Card.Content>
+          {creditCardReports.length ===
+          0 ? (
+            <Text
+              style={
+                styles.emptyText
+              }
+            >
+              No credit cards added.
+            </Text>
+          ) : (
+            creditCardReports.map(
+              (
+                account,
+                index
+              ) => {
+                const usedRatio =
+                  account.creditLimit
+                    ? account.outstanding /
+                      account.creditLimit
+                    : 0;
+
+                return (
+                  <View
+                    key={
+                      account.id
+                    }
+                  >
+                    <View
+                      style={
+                        styles.accountHeader
+                      }
+                    >
+                      <Text
+                        variant="bodyLarge"
+                        style={
+                          styles.bold
+                        }
+                      >
+                        {
+                          account.name
+                        }
+                      </Text>
+
+                      <Text
+                        style={
+                          styles.expense
+                        }
+                      >
+                        {formatMoney(
+                          account.outstanding
+                        )}
+                      </Text>
+                    </View>
+
+                    <ProgressBar
+                      progress={Math.min(
+                        1,
+                        usedRatio
+                      )}
+                      style={
+                        styles.progress
+                      }
+                    />
+
+                    <View
+                      style={
+                        styles.creditDetails
+                      }
+                    >
+                      <View
+                        style={
+                          styles.creditMetricRow
+                        }
+                      >
+                        <View
+                          style={
+                            styles.creditMetric
+                          }
+                        >
+                          <Text
+                            variant="bodySmall"
+                            style={
+                              styles.label
+                            }
+                          >
+                            Limit
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.creditMetricValue
+                            }
+                          >
+                            {formatMoney(
+                              account.creditLimit ??
+                                0
+                            )}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.creditMetric
+                          }
+                        >
+                          <Text
+                            variant="bodySmall"
+                            style={
+                              styles.label
+                            }
+                          >
+                            Available
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.creditMetricValue
+                            }
+                          >
+                            {formatMoney(
+                              account.availableLimit
+                            )}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={
+                          styles.creditMetricRow
+                        }
+                      >
+                        <View
+                          style={
+                            styles.creditMetric
+                          }
+                        >
+                          <Text
+                            variant="bodySmall"
+                            style={
+                              styles.label
+                            }
+                          >
+                            Spend
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.creditMetricValue
+                            }
+                          >
+                            {formatMoney(
+                              account.cardSpend
+                            )}
+                          </Text>
+                        </View>
+
+                        <View
+                          style={
+                            styles.creditMetric
+                          }
+                        >
+                          <Text
+                            variant="bodySmall"
+                            style={
+                              styles.label
+                            }
+                          >
+                            Paid
+                          </Text>
+
+                          <Text
+                            style={
+                              styles.creditMetricValue
+                            }
+                          >
+                            {formatMoney(
+                              account.cardPayments
+                            )}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <Text
+                        variant="bodySmall"
+                        style={
+                          styles.creditDueText
+                        }
+                      >
+                        Due{" "}
+                        {account.daysUntilDue < 0
+                          ? `${Math.abs(
+                              account.daysUntilDue
+                            )} days overdue`
+                          : account.daysUntilDue ===
+                            0
+                          ? "today"
+                          : `in ${account.daysUntilDue} days`}
+                        {" "}on{" "}
+                        {formatCreditCardDate(
+                          account.dueDate
+                        )}
+                      </Text>
+                    </View>
+
+                    {index <
+                      creditCardReports.length -
+                        1 && (
+                      <Divider
+                        style={
+                          styles.divider
+                        }
+                      />
+                    )}
+                  </View>
+                );
+              }
+            )
+          )}
+        </Card.Content>
+      </Card>
+
+      {/* ================================= */}
       {/* ACCOUNT ACTIVITY */}
       {/* ================================= */}
 
@@ -1085,12 +1420,46 @@ const styles =
       marginTop: 8,
     },
 
+    creditGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      justifyContent:
+        "space-between",
+      gap: 8,
+      marginTop: 8,
+    },
+
     emptyText: {
       color: "#777",
       textAlign: "center",
       paddingVertical: 10,
     },
 
+    
+  creditMetricRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+
+  creditMetric: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 14,
+    backgroundColor: "#F8FAFC",
+  },
+
+  creditMetricValue: {
+    marginTop: 4,
+    fontWeight: "700",
+    fontSize: 15,
+  },
+
+  creditDueText: {
+    color: "#6B7280",
+    marginTop: 14,
+    fontWeight: "500",
+  },
+  
     transactionCard: {
       borderRadius: 14,
       marginBottom: 10,
