@@ -2,6 +2,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { useRouter } from "expo-router";
 import {
   ScrollView,
   StyleSheet,
@@ -31,11 +32,14 @@ import { useCategoryStore } from "../../src/store/categoryStore";
 import { useNotificationStore } from "../../src/store/notificationStore";
 import {
   AppThemeMode,
+  AppCurrency,
+  CURRENCIES,
   useSettingsStore,
 } from "../../src/store/settingsStore";
 
 export default function SettingsScreen() {
   const theme = useTheme();
+  const router = useRouter();
 
   const {
     accounts,
@@ -55,6 +59,8 @@ export default function SettingsScreen() {
   const {
     themeMode,
     setThemeMode,
+    currency,
+    setCurrency,
   } = useSettingsStore();
 
   const {
@@ -70,6 +76,8 @@ export default function SettingsScreen() {
     themeDialogVisible,
     setThemeDialogVisible,
   ] = useState(false);
+
+  const [currencyDialogVisible, setCurrencyDialogVisible] = useState(false);
 
   const [
     loading,
@@ -262,6 +270,12 @@ const handleImportBackup =
       );
     };
 
+  const handleCurrencyChange = async (nextCurrency: AppCurrency) => {
+    await setCurrency(nextCurrency);
+    showNotification(`Currency changed to ${nextCurrency.code}.`, "success");
+    setCurrencyDialogVisible(false);
+  };
+
   // ========================================
   // UI
   // ========================================
@@ -369,6 +383,30 @@ const handleImportBackup =
           />
         </Card>
 
+        <Text variant="titleMedium" style={styles.sectionTitle}>
+          Planning
+        </Text>
+
+        <Card style={styles.card}>
+          <List.Item
+            title="Monthly Budgets"
+            description="Set category spending limits and track progress"
+            left={(props) => <List.Icon {...props} icon="chart-donut" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => router.push("/budgets")}
+          />
+
+          <Divider />
+
+          <List.Item
+            title="Recurring Transactions"
+            description="Automate salary, rent, EMI, and subscriptions"
+            left={(props) => <List.Icon {...props} icon="calendar-sync" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => router.push("/recurring")}
+          />
+        </Card>
+
         {/* ================================= */}
         {/* DATA MANAGEMENT */}
         {/* ================================= */}
@@ -455,13 +493,24 @@ const handleImportBackup =
         >
           <List.Item
             title="Currency"
-            description="Indian Rupee (₹)"
+            description={`${currency.code} (${currency.symbol})`}
             left={(props) => (
               <List.Icon
                 {...props}
                 icon="currency-inr"
               />
             )}
+            onPress={() => setCurrencyDialogVisible(true)}
+          />
+
+          <Divider />
+
+          <List.Item
+            title="App Lock"
+            description="Protect MoneyFlow with a PIN or biometrics"
+            left={(props) => <List.Icon {...props} icon="shield-lock-outline" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => router.push("/security")}
           />
 
           <Divider />
@@ -733,6 +782,31 @@ const handleImportBackup =
             >
               Cancel
             </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
+      <Portal>
+        <Dialog
+          visible={currencyDialogVisible}
+          onDismiss={() => setCurrencyDialogVisible(false)}
+        >
+          <Dialog.Title>Choose currency</Dialog.Title>
+          <Dialog.Content>
+            {CURRENCIES.map((option, index) => (
+              <View key={option.code}>
+                {index > 0 && <Divider />}
+                <List.Item
+                  title={option.code}
+                  description={`${option.symbol} · ${option.locale}`}
+                  right={(props) => currency.code === option.code ? <List.Icon {...props} icon="check" /> : null}
+                  onPress={() => handleCurrencyChange(option)}
+                />
+              </View>
+            ))}
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setCurrencyDialogVisible(false)}>Cancel</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>

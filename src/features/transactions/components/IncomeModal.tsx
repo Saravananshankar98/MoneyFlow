@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Controller,
@@ -8,6 +8,8 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -25,6 +27,11 @@ import {
 import { Picker } from "../../../shared/components/inputs/PaperPicker";
 
 import * as DocumentPicker from "expo-document-picker";
+
+import {
+  DatePickerModal,
+  TimePickerModal,
+} from "react-native-paper-dates";
 
 import { useAccountStore } from "../../../store/accountStore";
 
@@ -115,6 +122,9 @@ export default function IncomeModal({
     showNotification,
   } = useNotificationStore();
 
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const [timePickerVisible, setTimePickerVisible] = useState(false);
+
   // ========================================
   // FORM
   // ========================================
@@ -142,6 +152,64 @@ export default function IncomeModal({
 
       defaultValues:
         DEFAULT_FORM_VALUES,
+    });
+
+  const selectedDateValue = watch("date");
+  const selectedDate = selectedDateValue
+    ? new Date(selectedDateValue)
+    : new Date();
+
+  const updateSelectedDate = (updated: Date) => {
+    updated.setSeconds(0);
+    updated.setMilliseconds(0);
+    setValue("date", updated.toISOString(), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  };
+
+  const handleDateConfirm = ({ date }: { date: Date | undefined }) => {
+    setDatePickerVisible(false);
+
+    if (!date) {
+      return;
+    }
+
+    const updated = new Date(date);
+    updated.setHours(
+      selectedDate.getHours(),
+      selectedDate.getMinutes(),
+      selectedDate.getSeconds(),
+      0
+    );
+    updateSelectedDate(updated);
+  };
+
+  const handleTimeConfirm = ({
+    hours,
+    minutes,
+  }: {
+    hours: number;
+    minutes: number;
+  }) => {
+    setTimePickerVisible(false);
+    const updated = new Date(selectedDate);
+    updated.setHours(hours, minutes, 0, 0);
+    updateSelectedDate(updated);
+  };
+
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
     });
 
   // ========================================
@@ -448,6 +516,10 @@ export default function IncomeModal({
           },
         ]}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardAvoidingView}
+        >
         <ScrollView
           contentContainerStyle={
             styles.content
@@ -623,7 +695,7 @@ export default function IncomeModal({
                     value=""
                   />
 
-                  {accounts.map(
+                  {accounts.filter((account) => !account.isArchived).map(
                     (
                       account
                     ) => (
@@ -839,48 +911,29 @@ export default function IncomeModal({
             }
           />
 
-          {/* ================================= */}
-          {/* DATE */}
-          {/* ================================= */}
-
-          <Controller
-            control={control}
-            name="date"
-            render={({
-              field,
-            }) => (
+          <View style={styles.dateTimeRow}>
+            <View style={styles.dateTimeItem}>
               <TextInput
                 mode="outlined"
                 label="Date"
-                placeholder="YYYY-MM-DD"
-                value={
-                  field.value
-                    ? field.value.slice(
-                        0,
-                        10
-                      )
-                    : ""
-                }
-                onChangeText={(
-                  value
-                ) =>
-                  field.onChange(
-                    value
-                      ? new Date(
-                          value
-                        ).toISOString()
-                      : ""
-                  )
-                }
+                value={formatDate(selectedDate)}
+                editable={false}
+                right={<TextInput.Icon icon="calendar" onPress={() => setDatePickerVisible(true)} />}
+                onPressIn={() => setDatePickerVisible(true)}
               />
-            )}
-          />
+            </View>
 
-          <View
-            style={
-              styles.spacing
-            }
-          />
+            <View style={styles.dateTimeItem}>
+              <TextInput
+                mode="outlined"
+                label="Time"
+                value={formatTime(selectedDate)}
+                editable={false}
+                right={<TextInput.Icon icon="clock-outline" onPress={() => setTimePickerVisible(true)} />}
+                onPressIn={() => setTimePickerVisible(true)}
+              />
+            </View>
+          </View>
 
           {/* ================================= */}
           {/* ATTACHMENT */}
@@ -911,6 +964,7 @@ export default function IncomeModal({
           <Button
             mode="contained"
             buttonColor="#16A34A"
+            contentStyle={styles.submitButtonContent}
             onPress={handleSubmit(
               onSubmit
             )}
@@ -920,7 +974,26 @@ export default function IncomeModal({
               : "Save Income"}
           </Button>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
+
+      <DatePickerModal
+        locale="en"
+        mode="single"
+        visible={datePickerVisible}
+        date={selectedDate}
+        onDismiss={() => setDatePickerVisible(false)}
+        onConfirm={handleDateConfirm}
+      />
+
+      <TimePickerModal
+        visible={timePickerVisible}
+        onDismiss={() => setTimePickerVisible(false)}
+        onConfirm={handleTimeConfirm}
+        hours={selectedDate.getHours()}
+        minutes={selectedDate.getMinutes()}
+        label="Select time"
+      />
     </Portal>
   );
 }
@@ -932,11 +1005,16 @@ export default function IncomeModal({
 const styles =
   StyleSheet.create({
     modal: {
-      margin: 20,
+      width: "92%",
+      maxWidth: 560,
+      maxHeight: "88%",
+      alignSelf: "center",
+      borderRadius: 24,
+      overflow: "hidden",
+    },
 
-      borderRadius: 20,
-
-      maxHeight: "90%",
+    keyboardAvoidingView: {
+      flexShrink: 1,
     },
 
     content: {
@@ -949,6 +1027,16 @@ const styles =
       marginBottom: 20,
 
       fontWeight: "600",
+    },
+
+    dateTimeRow: {
+      flexDirection: "row",
+      gap: 12,
+      marginBottom: 16,
+    },
+
+    dateTimeItem: {
+      flex: 1,
     },
 
     spacing: {
@@ -990,5 +1078,9 @@ const styles =
       fontSize: 12,
 
       color: "#49454F",
+    },
+
+    submitButtonContent: {
+      minHeight: 48,
     },
   });

@@ -1,5 +1,6 @@
 import { StyleSheet, View } from "react-native";
 import { Card, Text } from "react-native-paper";
+import { useCurrencyFormatter } from "../../../store/settingsStore";
 
 type Props = {
   title: string;
@@ -10,6 +11,7 @@ export default function BalanceCard({
   title,
   amount,
 }: Props) {
+  const { formatMoney } = useCurrencyFormatter();
   return (
     <Card style={styles.card}>
       <Card.Content>
@@ -18,7 +20,7 @@ export default function BalanceCard({
         <View style={{ height: 8 }} />
 
         <Text variant="displaySmall">
-          ₹{amount.toLocaleString("en-IN")}
+          {formatMoney(amount)}
         </Text>
       </Card.Content>
     </Card>

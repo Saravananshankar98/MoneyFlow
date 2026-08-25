@@ -8,6 +8,8 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -645,6 +647,10 @@ export default function ExpenseModal({
           },
         ]}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardAvoidingView}
+        >
         <ScrollView
           contentContainerStyle={
             styles.content
@@ -894,7 +900,7 @@ export default function ExpenseModal({
                     value=""
                   />
 
-                  {accounts.map(
+                  {accounts.filter((account) => !account.isArchived).map(
                     (
                       account
                     ) => (
@@ -1149,6 +1155,7 @@ export default function ExpenseModal({
 
           <Button
             mode="contained"
+            contentStyle={styles.submitButtonContent}
             onPress={handleSubmit(
               onSubmit
             )}
@@ -1158,6 +1165,7 @@ export default function ExpenseModal({
               : "Save Expense"}
           </Button>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ================================== */}
@@ -1216,11 +1224,16 @@ export default function ExpenseModal({
 const styles =
   StyleSheet.create({
     modal: {
-      margin: 20,
+      width: "92%",
+      maxWidth: 560,
+      maxHeight: "88%",
+      alignSelf: "center",
+      borderRadius: 24,
+      overflow: "hidden",
+    },
 
-      borderRadius: 20,
-
-      maxHeight: "92%",
+    keyboardAvoidingView: {
+      flexShrink: 1,
     },
 
     content: {
@@ -1286,5 +1299,9 @@ const styles =
       fontSize: 12,
 
       color: "#49454F",
+    },
+
+    submitButtonContent: {
+      minHeight: 48,
     },
   });

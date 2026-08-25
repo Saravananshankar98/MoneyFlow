@@ -4,6 +4,8 @@ const STORAGE_KEYS = [
   "moneyflow_accounts",
   "moneyflow_categories",
   "moneyflow_transactions",
+  "moneyflow_budgets",
+  "moneyflow_recurring_transactions",
 ];
 
 export async function resetAllData() {

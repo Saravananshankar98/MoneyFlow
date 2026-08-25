@@ -10,6 +10,8 @@ import {
 } from "@hookform/resolvers/zod";
 
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -26,7 +28,7 @@ import {
 
 import {
   Picker,
-} from "@react-native-picker/picker";
+} from "../../../shared/components/inputs/PaperPicker";
 
 import {
   useAccountStore,
@@ -340,6 +342,10 @@ export default function AccountModal({
           },
         ]}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardAvoidingView}
+        >
         <ScrollView
           contentContainerStyle={
             styles.content
@@ -835,6 +841,7 @@ export default function AccountModal({
 
           <Button
             mode="contained"
+            contentStyle={styles.submitButtonContent}
             onPress={handleSubmit(
               onSubmit
             )}
@@ -844,6 +851,7 @@ export default function AccountModal({
               : "Save Account"}
           </Button>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </Portal>
   );
@@ -856,17 +864,21 @@ export default function AccountModal({
 const styles =
   StyleSheet.create({
     modal: {
-      margin: 20,
+      width: "92%",
+      maxWidth: 560,
+      maxHeight: "88%",
+      alignSelf: "center",
+      borderRadius: 24,
+      overflow: "hidden",
+    },
 
-      borderRadius: 20,
-
-      maxHeight: "90%",
+    keyboardAvoidingView: {
+      flexShrink: 1,
     },
 
     content: {
       padding: 20,
-
-      paddingBottom: 30,
+      paddingBottom: 24,
     },
 
     title: {
@@ -940,5 +952,9 @@ const styles =
 
     dayItem: {
       flex: 1,
+    },
+
+    submitButtonContent: {
+      minHeight: 48,
     },
   });

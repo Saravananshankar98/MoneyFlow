@@ -21,6 +21,8 @@ import {
 import {
     useNotificationStore,
 } from "../../store/notificationStore";
+import { useRecurringStore } from "../../store/recurringStore";
+import AppLockGate from "../security/AppLockGate";
 
 export default function AppProvider({
 
@@ -46,6 +48,10 @@ export default function AppProvider({
         loadSettings();
     }, [loadSettings]);
 
+    useEffect(() => {
+        useRecurringStore.getState().processDueItems();
+    }, []);
+
     const shouldUseDark =
         themeMode === "dark" ||
         (
@@ -57,7 +63,7 @@ export default function AppProvider({
 
         <PaperProvider theme={shouldUseDark ? DarkTheme : LightTheme}>
 
-            {children}
+            <AppLockGate>{children}</AppLockGate>
 
             <Snackbar
                 visible={visible}

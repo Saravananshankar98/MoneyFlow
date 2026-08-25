@@ -4,6 +4,8 @@ import {
   useForm,
 } from "react-hook-form";
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   View,
 } from "react-native";
@@ -192,15 +194,25 @@ export default function CategoryModal({
         contentContainerStyle={{
           backgroundColor:
             theme.colors.surface,
-          margin: 20,
-          borderRadius: 20,
-          maxHeight: "90%",
+          width: "92%",
+          maxWidth: 560,
+          maxHeight: "88%",
+          alignSelf: "center",
+          borderRadius: 24,
+          overflow: "hidden",
         }}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={{ flexShrink: 1 }}
+        >
         <ScrollView
           contentContainerStyle={{
             padding: 20,
+            paddingBottom: 24,
           }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
         >
           <Text
             variant="headlineSmall"
@@ -369,6 +381,7 @@ export default function CategoryModal({
               : "Save Category"}
           </Button>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
     </Portal>
   );

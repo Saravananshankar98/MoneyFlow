@@ -43,6 +43,7 @@ import {
 import {
   useNotificationStore,
 } from "../../src/store/notificationStore";
+import { useCurrencyFormatter } from "../../src/store/settingsStore";
 
 import ExpenseModal from "../../src/features/transactions/components/ExpenseModal";
 
@@ -65,6 +66,7 @@ type GroupedTransactions = {
 
 export default function TransactionsScreen() {
   const theme = useTheme();
+  const { formatMoney } = useCurrencyFormatter();
 
   const {
     transactions,
@@ -170,14 +172,6 @@ export default function TransactionsScreen() {
   // ========================================
   // MONEY
   // ========================================
-
-  const formatMoney = (
-    amount: number
-  ) => {
-    return `₹${amount.toLocaleString(
-      "en-IN"
-    )}`;
-  };
 
   // ========================================
   // ACCOUNT

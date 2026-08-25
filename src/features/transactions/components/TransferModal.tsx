@@ -8,6 +8,8 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   View,
@@ -600,8 +602,8 @@ export default function TransferModal({
         {accounts
           .filter(
             (account) =>
-              account.id !==
-              excludeAccountId
+              account.id !== excludeAccountId &&
+              !account.isArchived
           )
           .map(
             (account) => (
@@ -659,6 +661,10 @@ export default function TransferModal({
           },
         ]}
       >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.keyboardAvoidingView}
+        >
         <ScrollView
           contentContainerStyle={
             styles.content
@@ -1006,6 +1012,7 @@ export default function TransferModal({
 
           <Button
             mode="contained"
+            contentStyle={styles.submitButtonContent}
             icon="swap-horizontal"
             onPress={handleSubmit(
               onSubmit
@@ -1016,6 +1023,7 @@ export default function TransferModal({
               : "Save Transfer"}
           </Button>
         </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ================================== */}
@@ -1074,11 +1082,16 @@ export default function TransferModal({
 const styles =
   StyleSheet.create({
     modal: {
-      margin: 20,
+      width: "92%",
+      maxWidth: 560,
+      maxHeight: "88%",
+      alignSelf: "center",
+      borderRadius: 24,
+      overflow: "hidden",
+    },
 
-      borderRadius: 20,
-
-      maxHeight: "92%",
+    keyboardAvoidingView: {
+      flexShrink: 1,
     },
 
     content: {
@@ -1137,5 +1150,9 @@ const styles =
       fontSize: 12,
 
       color: "#49454F",
+    },
+
+    submitButtonContent: {
+      minHeight: 48,
     },
   });

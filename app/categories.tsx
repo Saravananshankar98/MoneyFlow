@@ -21,6 +21,7 @@ import { useFocusEffect } from "expo-router";
 
 import { useCategoryStore } from "../src/store/categoryStore";
 import { useNotificationStore } from "../src/store/notificationStore";
+import { useTransactionStore } from "../src/store/transactionStore";
 
 import CategoryModal from "../src/features/categories/components/CategoryModal";
 
@@ -35,6 +36,7 @@ export default function CategoriesScreen() {
     categories,
     loadCategories,
     deleteCategory,
+    updateCategory,
   } = useCategoryStore();
 
   const {
@@ -52,6 +54,8 @@ export default function CategoriesScreen() {
   ] = useState<Category | null>(
     null
   );
+
+  const [showArchived, setShowArchived] = useState(false);
 
   const [
     deleteDialogVisible,
@@ -96,6 +100,18 @@ export default function CategoriesScreen() {
         return;
       }
 
+      await useTransactionStore.getState().loadTransactions();
+      const isInUse = useTransactionStore.getState().transactions.some(
+        (transaction) => transaction.category === categoryToDelete.id
+      );
+
+      if (isInUse) {
+        setDeleteDialogVisible(false);
+        setCategoryToDelete(null);
+        showNotification("This category is used by transactions. Archive it to preserve your history.", "error");
+        return;
+      }
+
       const result =
         await deleteCategory(
         categoryToDelete.id
@@ -117,6 +133,19 @@ export default function CategoriesScreen() {
         "success"
       );
     };
+
+  const handleArchive = async (category: Category) => {
+    const now = new Date().toISOString();
+    const result = await updateCategory({ ...category, isArchived: true, archivedAt: now, updatedAt: now });
+    showNotification(result.success ? "Category archived." : result.error ?? "Unable to archive category.", result.success ? "success" : "error");
+  };
+
+  const handleRestore = async (category: Category) => {
+    const result = await updateCategory({ ...category, isArchived: false, archivedAt: undefined, updatedAt: new Date().toISOString() });
+    showNotification(result.success ? "Category restored." : result.error ?? "Unable to restore category.", result.success ? "success" : "error");
+  };
+
+  const displayedCategories = categories.filter((category) => Boolean(category.isArchived) === showArchived);
 
   return (
     <View
@@ -145,10 +174,13 @@ export default function CategoriesScreen() {
             expense categories
           </Text>
         </View>
+        <Button compact mode="text" onPress={() => setShowArchived((current) => !current)}>
+          {showArchived ? "Show active" : "Show archived"}
+        </Button>
       </View>
 
       <FlatList
-        data={categories}
+        data={displayedCategories}
         keyExtractor={(item) =>
           item.id
         }
@@ -195,7 +227,7 @@ export default function CategoriesScreen() {
                         styles.type
                       }
                     >
-                      {item.type}
+                      {item.isArchived ? "archived" : item.type}
                     </Text>
                   </View>
                 </View>
@@ -212,6 +244,11 @@ export default function CategoriesScreen() {
                         item
                       )
                     }
+                  />
+
+                  <IconButton
+                    icon={item.isArchived ? "restore" : "archive-outline"}
+                    onPress={() => item.isArchived ? handleRestore(item) : handleArchive(item)}
                   />
 
                   <IconButton
@@ -340,6 +377,9 @@ const styles = StyleSheet.create({
   },
 
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
 

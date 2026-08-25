@@ -9,6 +9,8 @@ export interface Category {
   icon: string;
   color: string;
   type: CategoryType;
+  isArchived?: boolean;
+  archivedAt?: string;
   createdAt: string;
   updatedAt: string;
 }

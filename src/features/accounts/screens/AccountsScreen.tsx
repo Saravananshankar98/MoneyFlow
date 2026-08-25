@@ -10,6 +10,7 @@ import {
 
 import { useAccountStore } from "../../../store";
 import { useNotificationStore } from "../../../store/notificationStore";
+import { useTransactionStore } from "../../../store/transactionStore";
 import { Account } from "../types/account";
 
 import AccountList from "../components/AccountList";
@@ -40,6 +41,8 @@ export default function AccountsScreen() {
   const [accountToDelete, setAccountToDelete] =
     useState<Account | null>(null);
 
+  const [showArchived, setShowArchived] = useState(false);
+
   useEffect(() => {
     loadAccounts();
   }, [loadAccounts]);
@@ -59,12 +62,61 @@ export default function AccountsScreen() {
     setDeleteDialogVisible(true);
   };
 
+  const handleArchive = async (account: Account) => {
+    await useAccountStore.getState().updateAccount({
+      ...account,
+      isArchived: true,
+      archivedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    });
+    showNotification("Account archived. Your transaction history is unchanged.", "success");
+  };
+
+  const handleRestore = async (account: Account) => {
+    await useAccountStore.getState().updateAccount({
+      ...account,
+      isArchived: false,
+      archivedAt: undefined,
+      updatedAt: new Date().toISOString(),
+    });
+    showNotification("Account restored.", "success");
+  };
+
+  const displayedAccounts = accounts.filter((account) => Boolean(account.isArchived) === showArchived);
+
   const handleDeleteConfirm = async () => {
     if (!accountToDelete) {
       return;
     }
 
     try {
+      await useTransactionStore
+        .getState()
+        .loadTransactions();
+
+      const hasRelatedTransactions =
+        useTransactionStore
+          .getState()
+          .transactions.some(
+            (transaction) =>
+              transaction.accountId ===
+                accountToDelete.id ||
+              transaction.toAccountId ===
+                accountToDelete.id
+          );
+
+      if (hasRelatedTransactions) {
+        setDeleteDialogVisible(false);
+        setAccountToDelete(null);
+
+        showNotification(
+          "This account is used by transactions. Remove or move those transactions first.",
+          "error"
+        );
+
+        return;
+      }
+
       await deleteAccount(accountToDelete.id);
 
       setDeleteDialogVisible(false);
@@ -101,10 +153,24 @@ export default function AccountsScreen() {
         },
       ]}
     >
+      <View style={styles.header}>
+        <Text variant="headlineMedium" style={styles.title}>
+          Accounts
+        </Text>
+        <Text variant="bodyMedium" style={styles.subtitle}>
+          Keep your balances in one place.
+        </Text>
+        <Button compact mode="text" onPress={() => setShowArchived((current) => !current)}>
+          {showArchived ? "Show active" : "Show archived"}
+        </Button>
+      </View>
+
       <AccountList
-        accounts={accounts}
+        accounts={displayedAccounts}
         onEdit={handleEdit}
         onDelete={handleDeleteRequest}
+        onArchive={handleArchive}
+        onRestore={handleRestore}
       />
 
       <AccountModal
@@ -118,6 +184,7 @@ export default function AccountsScreen() {
         icon="plus"
         onPress={handleAdd}
         style={styles.addButton}
+        contentStyle={styles.addButtonContent}
       >
         Add Account
       </Button>
@@ -179,6 +246,23 @@ const styles = StyleSheet.create({
   addButton: {
     marginTop: 12,
     borderRadius: 14,
+  },
+
+  addButtonContent: {
+    minHeight: 48,
+  },
+
+  header: {
+    marginBottom: 16,
+  },
+
+  title: {
+    fontWeight: "700",
+  },
+
+  subtitle: {
+    marginTop: 4,
+    color: "#64748B",
   },
 
   accountName: {

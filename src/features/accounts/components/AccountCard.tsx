@@ -18,6 +18,7 @@ import {
   formatCreditCardDate,
   getPaymentDueDate,
 } from "../utils/creditCard";
+import { useCurrencyFormatter } from "../../../store/settingsStore";
 
 interface Props {
   account: Account;
@@ -29,6 +30,10 @@ interface Props {
   onDelete: (
     account: Account
   ) => void;
+
+  onArchive: (account: Account) => void;
+
+  onRestore: (account: Account) => void;
 }
 
 // ========================================
@@ -116,7 +121,10 @@ export default function AccountCard({
   account,
   onEdit,
   onDelete,
+  onArchive,
+  onRestore,
 }: Props) {
+  const { formatMoney } = useCurrencyFormatter();
   const [
     menuVisible,
     setMenuVisible,
@@ -155,7 +163,7 @@ export default function AccountCard({
 
   return (
     <Card
-      style={styles.card}
+      style={[styles.card, account.isArchived && styles.archivedCard]}
       onPress={() => {
         // Future:
         // Open Account Details
@@ -234,9 +242,7 @@ export default function AccountCard({
                     },
                   ]}
                 >
-                  {
-                    typeConfig.label
-                  }
+                  {account.isArchived ? "Archived" : typeConfig.label}
                 </Text>
               </View>
             </View>
@@ -275,6 +281,16 @@ export default function AccountCard({
                 );
 
                 onEdit(account);
+              }}
+            />
+
+            <Menu.Item
+              leadingIcon={account.isArchived ? "restore" : "archive-outline"}
+              title={account.isArchived ? "Restore" : "Archive"}
+              onPress={() => {
+                setMenuVisible(false);
+                if (account.isArchived) onRestore(account);
+                else onArchive(account);
               }}
             />
 
@@ -323,11 +339,7 @@ export default function AccountCard({
               },
             ]}
           >
-            ₹
-            {(isCreditCard
-              ? outstanding
-              : account.balance
-            ).toLocaleString("en-IN")}
+            {formatMoney(isCreditCard ? outstanding : account.balance)}
           </Text>
         </View>
 
@@ -350,10 +362,7 @@ export default function AccountCard({
               <Text
                 style={styles.detailAmount}
               >
-                ₹
-                {availableLimit.toLocaleString(
-                  "en-IN"
-                )}
+                {formatMoney(availableLimit)}
               </Text>
             </View>
 
@@ -394,6 +403,10 @@ const styles =
       marginBottom: 12,
 
       borderRadius: 20,
+    },
+
+    archivedCard: {
+      opacity: 0.68,
     },
 
     header: {

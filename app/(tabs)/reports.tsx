@@ -12,6 +12,7 @@ import {
 } from "react-native";
 
 import {
+  Button,
   Card,
   Divider,
   IconButton,
@@ -25,6 +26,12 @@ import { useFocusEffect } from "expo-router";
 import { useAccountStore } from "../../src/store/accountStore";
 import { useCategoryStore } from "../../src/store/categoryStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
+import { useNotificationStore } from "../../src/store/notificationStore";
+import { useCurrencyFormatter, useSettingsStore } from "../../src/store/settingsStore";
+import {
+  exportMonthlyPdf,
+  exportTransactionsCsv,
+} from "../../src/services/reportExportService";
 import {
   formatCreditCardDate,
   getAvailableLimit,
@@ -35,6 +42,9 @@ import {
 
 export default function ReportsScreen() {
   const theme = useTheme();
+  const { currency } = useSettingsStore();
+  const { formatMoney } = useCurrencyFormatter();
+  const { showNotification } = useNotificationStore();
 
   const {
     transactions,
@@ -62,6 +72,8 @@ export default function ReportsScreen() {
     refreshing,
     setRefreshing,
   ] = useState(false);
+
+  const [exporting, setExporting] = useState(false);
 
   // ========================================
   // LOAD
@@ -473,21 +485,13 @@ export default function ReportsScreen() {
   // FORMAT MONEY
   // ========================================
 
-  const formatMoney = (
-    amount: number
-  ) => {
-    return `₹${amount.toLocaleString(
-      "en-IN"
-    )}`;
-  };
-
   // ========================================
   // MONTH NAME
   // ========================================
 
   const monthName =
     selectedMonth.toLocaleDateString(
-      "en-IN",
+      currency.locale,
       {
         month: "long",
         year: "numeric",
@@ -506,6 +510,39 @@ export default function ReportsScreen() {
       now.getMonth() &&
     selectedMonth.getFullYear() ===
       now.getFullYear();
+
+  const handleExportCsv = async () => {
+    try {
+      setExporting(true);
+      await exportTransactionsCsv(monthTransactions, accounts);
+      showNotification("CSV report exported successfully.", "success");
+    } catch (error) {
+      console.error("CSV export failed:", error);
+      showNotification("Unable to export CSV report.", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPdf = async () => {
+    try {
+      setExporting(true);
+      await exportMonthlyPdf({
+        monthName,
+        transactions: monthTransactions,
+        income: monthlyIncome,
+        expense: monthlyExpense,
+        balance: totalBalance,
+        currency,
+      });
+      showNotification("PDF report exported successfully.", "success");
+    } catch (error) {
+      console.error("PDF export failed:", error);
+      showNotification("Unable to export PDF report.", "error");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // ========================================
   // UI
@@ -547,6 +584,15 @@ export default function ReportsScreen() {
       >
         Reports
       </Text>
+
+      <View style={styles.exportRow}>
+        <Button mode="outlined" icon="file-delimited-outline" onPress={handleExportCsv} loading={exporting} disabled={exporting} style={styles.exportButton}>
+          Export CSV
+        </Button>
+        <Button mode="contained" icon="file-pdf-box" onPress={handleExportPdf} loading={exporting} disabled={exporting} style={styles.exportButton}>
+          Export PDF
+        </Button>
+      </View>
 
       {/* ================================= */}
       {/* MONTH SELECTOR */}
@@ -1281,6 +1327,16 @@ const styles =
       marginBottom: 16,
     },
 
+    exportRow: {
+      flexDirection: "row",
+      gap: 12,
+      marginBottom: 16,
+    },
+
+    exportButton: {
+      flex: 1,
+    },
+
     monthCard: {
       borderRadius: 16,
       marginBottom: 12,
@@ -1427,6 +1483,10 @@ const styles =
         "space-between",
       gap: 8,
       marginTop: 8,
+    },
+
+    creditDetails: {
+      marginTop: 12,
     },
 
     emptyText: {

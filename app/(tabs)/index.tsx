@@ -16,6 +16,7 @@ import {
   Card,
   Divider,
   Icon,
+  ProgressBar,
   Text,
   useTheme,
 } from "react-native-paper";
@@ -24,6 +25,9 @@ import { useFocusEffect } from "expo-router";
 
 import { useAccountStore } from "../../src/store/accountStore";
 import { useTransactionStore } from "../../src/store/transactionStore";
+import { useCurrencyFormatter } from "../../src/store/settingsStore";
+import { useBudgetStore } from "../../src/store/budgetStore";
+import { useCategoryStore } from "../../src/store/categoryStore";
 import {
   formatCreditCardDate,
   getAvailableLimit,
@@ -39,6 +43,7 @@ import TransferModal from "../../src/features/transactions/components/TransferMo
 
 export default function DashboardScreen() {
   const theme = useTheme();
+  const { formatMoney } = useCurrencyFormatter();
 
   const {
     accounts,
@@ -49,6 +54,9 @@ export default function DashboardScreen() {
     transactions,
     loadTransactions,
   } = useTransactionStore();
+
+  const { budgets, loadBudgets } = useBudgetStore();
+  const { categories, loadCategories } = useCategoryStore();
 
   const [
     refreshing,
@@ -78,10 +86,14 @@ const [
       await Promise.all([
         loadAccounts(),
         loadTransactions(),
+        loadBudgets(),
+        loadCategories(),
       ]);
     }, [
       loadAccounts,
       loadTransactions,
+      loadBudgets,
+      loadCategories,
     ]);
 
   useFocusEffect(
@@ -106,14 +118,6 @@ const [
   // ========================================
   // FORMAT MONEY
   // ========================================
-
-  const formatMoney = (
-    amount: number
-  ) => {
-    return `₹${amount.toLocaleString(
-      "en-IN"
-    )}`;
-  };
 
   // ========================================
   // TOTAL BALANCE
@@ -143,6 +147,28 @@ const [
         0
       );
     }, [accounts]);
+
+  const budgetProgress = useMemo(() => {
+    const month = new Date().toISOString().slice(0, 7);
+    const spending = new Map<string, number>();
+
+    transactions
+      .filter((transaction) => transaction.type === "expense" && transaction.date.slice(0, 7) === month && transaction.category)
+      .forEach((transaction) => {
+        const categoryId = transaction.category!;
+        spending.set(categoryId, (spending.get(categoryId) ?? 0) + transaction.amount);
+      });
+
+    return budgets
+      .filter((budget) => budget.month === month)
+      .map((budget) => ({
+        ...budget,
+        name: categories.find((category) => category.id === budget.categoryId)?.name ?? "Deleted category",
+        spent: spending.get(budget.categoryId) ?? 0,
+      }))
+      .sort((first, second) => second.spent / second.amount - first.spent / first.amount)
+      .slice(0, 3);
+  }, [budgets, categories, transactions]);
 
   const creditCardReminders =
     useMemo(() => {
@@ -721,6 +747,32 @@ const [
             )}
           </Card.Content>
         </Card>
+
+        {budgetProgress.length > 0 && (
+          <Card style={styles.budgetCard}>
+            <Card.Content>
+              <View style={styles.budgetHeader}>
+                <View>
+                  <Text variant="titleMedium" style={styles.bold}>Budget status</Text>
+                  <Text variant="bodySmall" style={styles.label}>This month’s highest spending categories</Text>
+                </View>
+                <Icon source="chart-donut" size={26} color="#2563EB" />
+              </View>
+              {budgetProgress.map((budget) => {
+                const ratio = budget.spent / budget.amount;
+                return (
+                  <View key={budget.id} style={styles.budgetItem}>
+                    <View style={styles.progressHeader}>
+                      <Text variant="bodyMedium">{budget.name}</Text>
+                      <Text variant="bodySmall" style={ratio >= 1 ? styles.expense : styles.label}>{formatMoney(budget.spent)} / {formatMoney(budget.amount)}</Text>
+                    </View>
+                    <ProgressBar progress={Math.min(ratio, 1)} color={ratio >= 1 ? "#D32F2F" : "#2563EB"} style={styles.budgetProgress} />
+                  </View>
+                );
+              })}
+            </Card.Content>
+          </Card>
+        )}
 
         {/* ================================= */}
         {/* QUICK ACTIONS */}
@@ -1386,6 +1438,27 @@ const styles =
 
     bold: {
       fontWeight: "700",
+    },
+
+    budgetCard: {
+      borderRadius: 14,
+      marginBottom: 22,
+    },
+
+    budgetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+
+    budgetItem: {
+      marginTop: 14,
+    },
+
+    budgetProgress: {
+      height: 8,
+      borderRadius: 4,
+      marginTop: 6,
     },
 
     sectionTitle: {

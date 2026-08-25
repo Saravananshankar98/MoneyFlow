@@ -5,7 +5,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import * as DocumentPicker from "expo-document-picker";
 import * as Sharing from "expo-sharing";
 
-const BACKUP_VERSION = 1;
+const BACKUP_VERSION = 2;
 
 /**
  * IMPORTANT:
@@ -17,6 +17,8 @@ const STORAGE_KEYS = {
   accounts: "moneyflow_accounts",
   transactions: "moneyflow_transactions",
   categories: "moneyflow_categories",
+  budgets: "moneyflow_budgets",
+  recurringTransactions: "moneyflow_recurring_transactions",
 };
 
 interface MoneyFlowBackup {
@@ -28,6 +30,8 @@ interface MoneyFlowBackup {
     accounts: unknown[];
     transactions: unknown[];
     categories: unknown[];
+    budgets?: unknown[];
+    recurringTransactions?: unknown[];
   };
 }
 
@@ -68,6 +72,8 @@ export async function createBackup(): Promise<MoneyFlowBackup> {
     accounts,
     transactions,
     categories,
+    budgets,
+    recurringTransactions,
   ] = await Promise.all([
     AsyncStorage.getItem(
       STORAGE_KEYS.accounts
@@ -80,6 +86,8 @@ export async function createBackup(): Promise<MoneyFlowBackup> {
     AsyncStorage.getItem(
       STORAGE_KEYS.categories
     ),
+    AsyncStorage.getItem(STORAGE_KEYS.budgets),
+    AsyncStorage.getItem(STORAGE_KEYS.recurringTransactions),
   ]);
 
   return {
@@ -102,6 +110,8 @@ export async function createBackup(): Promise<MoneyFlowBackup> {
 
       categories:
         parseStorage(categories),
+      budgets: parseStorage(budgets),
+      recurringTransactions: parseStorage(recurringTransactions),
     },
   };
 }
@@ -399,6 +409,16 @@ export async function importBackup() {
       JSON.stringify(
         parsed.data.categories
       )
+    ),
+
+    AsyncStorage.setItem(
+      STORAGE_KEYS.budgets,
+      JSON.stringify(parsed.data.budgets ?? [])
+    ),
+
+    AsyncStorage.setItem(
+      STORAGE_KEYS.recurringTransactions,
+      JSON.stringify(parsed.data.recurringTransactions ?? [])
     ),
   ]);
 

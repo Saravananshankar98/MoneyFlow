@@ -35,6 +35,12 @@ Payment types include Cash, UPI, Debit Card, Credit Card, Net Banking, Cheque, a
 - Set a category name, icon, color, and type (`expense`, `income`, or `both`).
 - Reject duplicate category names.
 
+### Budgets and recurring transactions
+
+- Set one monthly spending budget per expense category and track the current month's spending against it.
+- Create weekly or monthly recurring income and expense rules for items such as salary, rent, EMI, and subscriptions.
+- Due recurring items are created automatically when the app opens; duplicate protection prevents the same scheduled item from being recorded twice.
+
 ### Reports
 
 - Browse transactions by month.

@@ -89,6 +89,10 @@ export default function CategoryPicker({
 
   const filteredCategories =
     categories.filter((category) => {
+      if (category.isArchived) {
+        return false;
+      }
+
       if (
         category.type === "both"
       ) {

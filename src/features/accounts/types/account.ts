@@ -50,6 +50,11 @@ export interface Account {
    */
   dueDateDay?: number;
 
+  /** Archived accounts stay in history but cannot receive new transactions. */
+  isArchived?: boolean;
+
+  archivedAt?: string;
+
   createdAt: string;
 
   updatedAt: string;

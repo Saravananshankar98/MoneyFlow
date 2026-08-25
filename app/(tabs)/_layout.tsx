@@ -1,13 +1,15 @@
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "react-native-paper";
+import AppFAB from "../../src/shared/components/fab/AppFAB";
 
 export default function TabsLayout() {
   const theme = useTheme();
 
   return (
-    <Tabs
-      screenOptions={{
+    <>
+      <Tabs
+        screenOptions={{
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
@@ -19,7 +21,7 @@ export default function TabsLayout() {
           backgroundColor: theme.colors.background,
         },
       }}
-    >
+      >
       <Tabs.Screen
         name="index"
         options={{
@@ -69,6 +71,9 @@ export default function TabsLayout() {
           ),
         }}
       />
-    </Tabs>
+      </Tabs>
+
+      <AppFAB />
+    </>
   );
 }

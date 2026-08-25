@@ -35,6 +35,8 @@ export interface Transaction {
 
   attachmentName?: string;
 
+  recurringId?: string;
+
   date: string;
 
   createdAt: string;
