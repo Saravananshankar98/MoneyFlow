@@ -21,6 +21,7 @@ import {
   Divider,
   List,
   Portal,
+  Switch,
   Dialog,
   Text,
   useTheme,
@@ -36,6 +37,7 @@ import {
   CURRENCIES,
   useSettingsStore,
 } from "../../src/store/settingsStore";
+import { checkFinancialReminders, ensureNotificationPermission } from "../../src/services/reminderService";
 
 export default function SettingsScreen() {
   const theme = useTheme();
@@ -61,6 +63,8 @@ export default function SettingsScreen() {
     setThemeMode,
     currency,
     setCurrency,
+    notificationsEnabled,
+    setNotificationsEnabled,
   } = useSettingsStore();
 
   const {
@@ -276,6 +280,18 @@ const handleImportBackup =
     setCurrencyDialogVisible(false);
   };
 
+  const handleReminderToggle = async (enabled: boolean) => {
+    if (enabled && !(await ensureNotificationPermission())) {
+      showNotification("Notification permission is required for reminders.", "error");
+      return;
+    }
+    await setNotificationsEnabled(enabled);
+    if (enabled) {
+      await checkFinancialReminders();
+    }
+    showNotification(enabled ? "Financial reminders enabled." : "Financial reminders disabled.", "success");
+  };
+
   // ========================================
   // UI
   // ========================================
@@ -405,6 +421,16 @@ const handleImportBackup =
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => router.push("/recurring")}
           />
+
+          <Divider />
+
+          <List.Item
+            title="Savings Goals"
+            description="Track goals such as travel or an emergency fund"
+            left={(props) => <List.Icon {...props} icon="target" />}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            onPress={() => router.push("/goals")}
+          />
         </Card>
 
         {/* ================================= */}
@@ -511,6 +537,15 @@ const handleImportBackup =
             left={(props) => <List.Icon {...props} icon="shield-lock-outline" />}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
             onPress={() => router.push("/security")}
+          />
+
+          <Divider />
+
+          <List.Item
+            title="Financial Reminders"
+            description="Budget, card due date, and recurring payment alerts"
+            left={(props) => <List.Icon {...props} icon="bell-outline" />}
+            right={() => <Switch value={notificationsEnabled} onValueChange={handleReminderToggle} />}
           />
 
           <Divider />

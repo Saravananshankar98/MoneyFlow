@@ -623,9 +623,7 @@ export default function TransferModal({
                       ).toLocaleString(
                         "en-IN"
                       )}`
-                    : `${account.name} - ₹${account.balance.toLocaleString(
-                        "en-IN"
-                      )}`
+                    : `${account.name} - ${account.type}`
                 }
                 value={
                   account.id

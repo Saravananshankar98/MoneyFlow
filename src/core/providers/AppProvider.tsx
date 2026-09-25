@@ -23,6 +23,7 @@ import {
 } from "../../store/notificationStore";
 import { useRecurringStore } from "../../store/recurringStore";
 import AppLockGate from "../security/AppLockGate";
+import { checkFinancialReminders } from "../../services/reminderService";
 
 export default function AppProvider({
 
@@ -35,6 +36,8 @@ export default function AppProvider({
     const {
         themeMode,
         loadSettings,
+        isLoaded,
+        notificationsEnabled,
     } = useSettingsStore();
 
     const {
@@ -51,6 +54,14 @@ export default function AppProvider({
     useEffect(() => {
         useRecurringStore.getState().processDueItems();
     }, []);
+
+    useEffect(() => {
+        if (isLoaded && notificationsEnabled) {
+            checkFinancialReminders().catch((error) =>
+                console.error("Reminder check failed:", error)
+            );
+        }
+    }, [isLoaded, notificationsEnabled]);
 
     const shouldUseDark =
         themeMode === "dark" ||

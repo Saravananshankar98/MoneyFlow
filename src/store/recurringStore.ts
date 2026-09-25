@@ -4,6 +4,7 @@ import type { RecurringTransaction } from "../features/recurring/types/recurring
 import type { Transaction } from "../features/transactions/types/transaction";
 import { useAccountStore } from "./accountStore";
 import { useTransactionStore } from "./transactionStore";
+import { readStorageArray } from "../core/storage/readStorageArray";
 
 const STORAGE_KEY = "moneyflow_recurring_transactions";
 
@@ -31,9 +32,8 @@ export const useRecurringStore = create<RecurringState>((set, get) => ({
   loadItems: async () => {
     set({ loading: true });
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
-      set({ items: Array.isArray(parsed) ? parsed as RecurringTransaction[] : [], loading: false });
+      const items = await readStorageArray<RecurringTransaction>(STORAGE_KEY);
+      set({ items, loading: false });
     } catch (error) {
       console.error("Failed to load recurring transactions:", error);
       set({ loading: false });
@@ -41,8 +41,7 @@ export const useRecurringStore = create<RecurringState>((set, get) => ({
   },
 
   saveItem: async (item) => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const existing: RecurringTransaction[] = raw ? JSON.parse(raw) : [];
+    const existing = await readStorageArray<RecurringTransaction>(STORAGE_KEY);
     const next = existing.some((current) => current.id === item.id)
       ? existing.map((current) => current.id === item.id ? item : current)
       : [item, ...existing];
@@ -51,14 +50,16 @@ export const useRecurringStore = create<RecurringState>((set, get) => ({
   },
 
   deleteItem: async (id) => {
-    const next = get().items.filter((item) => item.id !== id);
+    const existing = await readStorageArray<RecurringTransaction>(STORAGE_KEY);
+    const next = existing.filter((item) => item.id !== id);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     set({ items: next });
   },
 
   toggleItem: async (id) => {
     const now = new Date().toISOString();
-    const next = get().items.map((item) => item.id === id ? { ...item, active: !item.active, updatedAt: now } : item);
+    const existing = await readStorageArray<RecurringTransaction>(STORAGE_KEY);
+    const next = existing.map((item) => item.id === id ? { ...item, active: !item.active, updatedAt: now } : item);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     set({ items: next });
   },

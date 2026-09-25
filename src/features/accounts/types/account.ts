@@ -20,6 +20,9 @@ export interface Account {
 
   type: AccountType;
 
+  /** Optional account or card number, stored as text to preserve leading zeros. */
+  accountNumber?: string;
+
   /**
    * Credit card maximum spending limit.
    * Used only when type === "Credit Card".

@@ -120,8 +120,8 @@ function getTransactionDeltas(
 /**
  * Converts a cash-flow change into account field changes.
  *
- * For credit cards, negative cash flow increases the outstanding bill
- * and positive cash flow pays it down.
+ * Liability accounts use the inverse of a cash balance: a negative cash-flow
+ * change increases debt, while a positive change pays it down.
  */
 function getAccountDelta(
   account: ReturnType<
@@ -129,6 +129,13 @@ function getAccountDelta(
   >["accounts"][number],
   delta: number
 ): AccountDelta {
+  if (account.type === "Loan") {
+    return {
+      balance: -delta,
+      outstanding: 0,
+    };
+  }
+
   if (
     account.type !==
     "Credit Card"
@@ -201,9 +208,16 @@ async function applyAccountDeltas(
         account.balance) +
       accountDelta.outstanding;
 
+    if (account.type === "Loan" && newBalance < 0) {
+      return {
+        success: false,
+        error: `Payment exceeds outstanding loan balance for ${account.name}`,
+      };
+    }
+
     if (
-      account.type !==
-        "Credit Card" &&
+      account.type !== "Credit Card" &&
+      account.type !== "Loan" &&
       newBalance < 0
     ) {
       return {

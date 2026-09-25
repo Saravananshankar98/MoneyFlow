@@ -40,6 +40,8 @@ export const accountSchema =
       accountTypes
     ),
 
+    accountNumber: z.string().trim().max(34, "Account number is too long."),
+
     creditLimit: z
       .number()
       .min(

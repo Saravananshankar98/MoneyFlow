@@ -46,6 +46,7 @@ import {
 import {
   useNotificationStore,
 } from "../../../store/notificationStore";
+import { checkFinancialReminders } from "../../../services/reminderService";
 
 
 import {
@@ -54,6 +55,7 @@ import {
 } from "../validation/transactionSchema";
 
 import type {
+  PaymentType,
   Transaction,
 } from "../types/transaction";
 import CategoryPicker from "../../categories/components/CategoryPickerModal";
@@ -414,7 +416,7 @@ export default function ExpenseModal({
             data.accountId,
 
           paymentType:
-            data.paymentType as any,
+            data.paymentType as PaymentType,
 
           category:
             data.category,
@@ -446,6 +448,7 @@ export default function ExpenseModal({
         }
 
         await loadAccounts();
+        await checkFinancialReminders();
 
         reset(
           DEFAULT_FORM_VALUES
@@ -482,7 +485,7 @@ export default function ExpenseModal({
             data.accountId,
 
           paymentType:
-            data.paymentType as any,
+            data.paymentType as PaymentType,
 
           category:
             data.category,
@@ -517,6 +520,7 @@ export default function ExpenseModal({
       }
 
       await loadAccounts();
+      await checkFinancialReminders();
 
       reset(
         DEFAULT_FORM_VALUES
@@ -908,9 +912,7 @@ export default function ExpenseModal({
                         key={
                           account.id
                         }
-                        label={`${account.name} - ₹${account.balance.toLocaleString(
-                          "en-IN"
-                        )}`}
+                        label={`${account.name} - ${account.type}`}
                         value={
                           account.id
                         }

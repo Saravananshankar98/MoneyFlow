@@ -139,6 +139,10 @@ const [
             );
           }
 
+          if (account.type === "Loan") {
+            return total - account.balance;
+          }
+
           return (
             total +
             account.balance
@@ -169,6 +173,37 @@ const [
       .sort((first, second) => second.spent / second.amount - first.spent / first.amount)
       .slice(0, 3);
   }, [budgets, categories, transactions]);
+
+  const spendingInsights = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.toISOString().slice(0, 7);
+    const previous = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const previousMonth = previous.toISOString().slice(0, 7);
+    const totals = new Map<string, { current: number; previous: number }>();
+
+    transactions
+      .filter((transaction) => transaction.type === "expense" && transaction.category)
+      .forEach((transaction) => {
+        const month = transaction.date.slice(0, 7);
+        if (month !== currentMonth && month !== previousMonth) return;
+        const categoryId = transaction.category!;
+        const value = totals.get(categoryId) ?? { current: 0, previous: 0 };
+        if (month === currentMonth) value.current += transaction.amount;
+        else value.previous += transaction.amount;
+        totals.set(categoryId, value);
+      });
+
+    return Array.from(totals.entries())
+      .filter(([, amounts]) => amounts.previous > 0 && amounts.current !== amounts.previous)
+      .map(([categoryId, amounts]) => ({
+        categoryId,
+        name: categories.find((category) => category.id === categoryId)?.name ?? "Category",
+        ...amounts,
+        change: ((amounts.current - amounts.previous) / amounts.previous) * 100,
+      }))
+      .sort((first, second) => Math.abs(second.change) - Math.abs(first.change))
+      .slice(0, 2);
+  }, [categories, transactions]);
 
   const creditCardReminders =
     useMemo(() => {
@@ -767,6 +802,31 @@ const [
                       <Text variant="bodySmall" style={ratio >= 1 ? styles.expense : styles.label}>{formatMoney(budget.spent)} / {formatMoney(budget.amount)}</Text>
                     </View>
                     <ProgressBar progress={Math.min(ratio, 1)} color={ratio >= 1 ? "#D32F2F" : "#2563EB"} style={styles.budgetProgress} />
+                  </View>
+                );
+              })}
+            </Card.Content>
+          </Card>
+        )}
+
+        {spendingInsights.length > 0 && (
+          <Card style={styles.insightCard}>
+            <Card.Content>
+              <View style={styles.budgetHeader}>
+                <View>
+                  <Text variant="titleMedium" style={styles.bold}>Spending insights</Text>
+                  <Text variant="bodySmall" style={styles.label}>Compared with last month</Text>
+                </View>
+                <Icon source="lightbulb-on-outline" size={26} color="#F59E0B" />
+              </View>
+              {spendingInsights.map((insight) => {
+                const increased = insight.change > 0;
+                return (
+                  <View key={insight.categoryId} style={styles.insightRow}>
+                    <Text variant="bodyMedium" style={styles.grow}>{insight.name}</Text>
+                    <Text variant="bodySmall" style={increased ? styles.expense : styles.income}>
+                      {increased ? "↑" : "↓"} {Math.abs(Math.round(insight.change))}% · {formatMoney(insight.current)}
+                    </Text>
                   </View>
                 );
               })}
@@ -1445,6 +1505,11 @@ const styles =
       marginBottom: 22,
     },
 
+    insightCard: {
+      borderRadius: 14,
+      marginBottom: 22,
+    },
+
     budgetHeader: {
       flexDirection: "row",
       alignItems: "center",
@@ -1453,6 +1518,16 @@ const styles =
 
     budgetItem: {
       marginTop: 14,
+    },
+
+    insightRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 14,
+    },
+
+    grow: {
+      flex: 1,
     },
 
     budgetProgress: {

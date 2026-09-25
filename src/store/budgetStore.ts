@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import type { Budget } from "../features/budgets/types/budget";
+import { readStorageArray } from "../core/storage/readStorageArray";
 
 const STORAGE_KEY = "moneyflow_budgets";
 
@@ -19,9 +20,8 @@ export const useBudgetStore = create<BudgetState>((set) => ({
   loadBudgets: async () => {
     set({ loading: true });
     try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      const parsed: unknown = raw ? JSON.parse(raw) : [];
-      set({ budgets: Array.isArray(parsed) ? parsed as Budget[] : [], loading: false });
+      const budgets = await readStorageArray<Budget>(STORAGE_KEY);
+      set({ budgets, loading: false });
     } catch (error) {
       console.error("Failed to load budgets:", error);
       set({ loading: false });
@@ -29,8 +29,7 @@ export const useBudgetStore = create<BudgetState>((set) => ({
   },
 
   saveBudget: async (budget) => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const existing: Budget[] = raw ? JSON.parse(raw) : [];
+    const existing = await readStorageArray<Budget>(STORAGE_KEY);
     const index = existing.findIndex(
       (item) => item.categoryId === budget.categoryId && item.month === budget.month
     );
@@ -42,8 +41,7 @@ export const useBudgetStore = create<BudgetState>((set) => ({
   },
 
   deleteBudget: async (id) => {
-    const raw = await AsyncStorage.getItem(STORAGE_KEY);
-    const existing: Budget[] = raw ? JSON.parse(raw) : [];
+    const existing = await readStorageArray<Budget>(STORAGE_KEY);
     const next = existing.filter((item) => item.id !== id);
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     set({ budgets: next });

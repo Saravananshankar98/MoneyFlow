@@ -54,6 +54,7 @@ import {
 } from "../validation/transactionSchema";
 
 import type {
+  PaymentType,
   Transaction,
 } from "../types/transaction";
 import CategoryPicker from "../../categories/components/CategoryPickerModal";
@@ -317,7 +318,7 @@ export default function IncomeModal({
             data.accountId,
 
           paymentType:
-            data.paymentType as any,
+            data.paymentType as PaymentType,
 
           category:
             data.category,
@@ -389,7 +390,7 @@ export default function IncomeModal({
           data.accountId,
 
         paymentType:
-          data.paymentType as any,
+          data.paymentType as PaymentType,
 
         category:
           data.category,
@@ -703,9 +704,7 @@ export default function IncomeModal({
                         key={
                           account.id
                         }
-                        label={`${account.name} - ₹${account.balance.toLocaleString(
-                          "en-IN"
-                        )}`}
+                        label={`${account.name} - ${account.type}`}
                         value={
                           account.id
                         }

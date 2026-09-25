@@ -73,20 +73,8 @@ const ACCOUNT_TYPES = [
     value: "Cash",
   },
   {
-    label: "Wallet",
-    value: "Wallet",
-  },
-  {
-    label: "Investment",
-    value: "Investment",
-  },
-  {
     label: "Loan",
     value: "Loan",
-  },
-  {
-    label: "UPI",
-    value: "UPI",
   },
   {
     label: "Other",
@@ -96,6 +84,7 @@ const ACCOUNT_TYPES = [
 
 const DEFAULT_FORM_VALUES: AccountForm = {
   name: "",
+  accountNumber: "",
   balance: 0,
   color: "#2563EB",
   type: "Savings",
@@ -147,6 +136,8 @@ export default function AccountModal({
     selectedType ===
     "Credit Card";
 
+  const isLoan = selectedType === "Loan";
+
   // ========================================
   // LOAD FORM
   // ========================================
@@ -160,6 +151,9 @@ export default function AccountModal({
       reset({
         name:
           account.name,
+
+        accountNumber:
+          account.accountNumber ?? "",
 
         balance:
           account.balance,
@@ -411,6 +405,23 @@ export default function AccountModal({
               styles.spacing
             }
           />
+
+          <Controller
+            control={control}
+            name="accountNumber"
+            render={({ field }) => (
+              <TextInput
+                mode="outlined"
+                label={isCreditCard ? "Card Number (optional)" : "Account Number (optional)"}
+                placeholder={isCreditCard ? "Last four digits or card number" : "Account number"}
+                keyboardType="number-pad"
+                value={field.value}
+                onChangeText={field.onChange}
+              />
+            )}
+          />
+
+          <View style={styles.spacing} />
 
           {/* ================================= */}
           {/* ACCOUNT TYPE */}
@@ -790,7 +801,11 @@ export default function AccountModal({
                 }) => (
                   <TextInput
                     mode="outlined"
-                    label="Opening Balance"
+                    label={
+                      isLoan
+                        ? "Outstanding Loan Balance"
+                        : "Opening Balance"
+                    }
                     keyboardType="numeric"
                     value={
                       field.value ===
@@ -824,6 +839,15 @@ export default function AccountModal({
                     errors.balance
                       .message
                   }
+                </Text>
+              )}
+
+              {isLoan && (
+                <Text
+                  variant="bodySmall"
+                  style={styles.loanHint}
+                >
+                  Use a transfer from your bank account to this loan account when you make a payment.
                 </Text>
               )}
             </>
@@ -899,6 +923,12 @@ const styles =
       color: "#D32F2F",
 
       marginTop: 4,
+    },
+
+    loanHint: {
+      color: "#64748B",
+      marginTop: 8,
+      lineHeight: 18,
     },
 
     pickerContainer: {

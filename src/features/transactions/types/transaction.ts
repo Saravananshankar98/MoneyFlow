@@ -10,7 +10,8 @@ export type PaymentType =
   | "Credit Card"
   | "Net Banking"
   | "Cheque"
-  | "Wallet";
+  | "Wallet"
+  | "Other";
 
 export interface Transaction {
   id: string;

@@ -259,6 +259,10 @@ export default function ReportsScreen() {
           );
         }
 
+        if (account.type === "Loan") {
+          return total - account.balance;
+        }
+
         return (
           total +
           account.balance

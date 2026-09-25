@@ -19,6 +19,7 @@ const STORAGE_KEYS = {
   categories: "moneyflow_categories",
   budgets: "moneyflow_budgets",
   recurringTransactions: "moneyflow_recurring_transactions",
+  savingsGoals: "moneyflow_savings_goals",
 };
 
 interface MoneyFlowBackup {
@@ -32,6 +33,7 @@ interface MoneyFlowBackup {
     categories: unknown[];
     budgets?: unknown[];
     recurringTransactions?: unknown[];
+    savingsGoals?: unknown[];
   };
 }
 
@@ -74,6 +76,7 @@ export async function createBackup(): Promise<MoneyFlowBackup> {
     categories,
     budgets,
     recurringTransactions,
+    savingsGoals,
   ] = await Promise.all([
     AsyncStorage.getItem(
       STORAGE_KEYS.accounts
@@ -88,6 +91,7 @@ export async function createBackup(): Promise<MoneyFlowBackup> {
     ),
     AsyncStorage.getItem(STORAGE_KEYS.budgets),
     AsyncStorage.getItem(STORAGE_KEYS.recurringTransactions),
+    AsyncStorage.getItem(STORAGE_KEYS.savingsGoals),
   ]);
 
   return {
@@ -112,6 +116,7 @@ export async function createBackup(): Promise<MoneyFlowBackup> {
         parseStorage(categories),
       budgets: parseStorage(budgets),
       recurringTransactions: parseStorage(recurringTransactions),
+      savingsGoals: parseStorage(savingsGoals),
     },
   };
 }
@@ -419,6 +424,11 @@ export async function importBackup() {
     AsyncStorage.setItem(
       STORAGE_KEYS.recurringTransactions,
       JSON.stringify(parsed.data.recurringTransactions ?? [])
+    ),
+
+    AsyncStorage.setItem(
+      STORAGE_KEYS.savingsGoals,
+      JSON.stringify(parsed.data.savingsGoals ?? [])
     ),
   ]);
 

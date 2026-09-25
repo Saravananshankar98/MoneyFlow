@@ -154,6 +154,8 @@ export default function AccountCard({
     account.type ===
     "Credit Card";
 
+  const isLoan = account.type === "Loan";
+
   const dueDateText =
     formatCreditCardDate(
       getPaymentDueDate(
@@ -245,6 +247,11 @@ export default function AccountCard({
                   {account.isArchived ? "Archived" : typeConfig.label}
                 </Text>
               </View>
+              {account.accountNumber ? (
+                <Text variant="bodySmall" style={styles.accountNumber}>
+                  •••• {account.accountNumber.slice(-4)}
+                </Text>
+              ) : null}
             </View>
           </View>
 
@@ -323,10 +330,11 @@ export default function AccountCard({
               styles.balanceLabel
             }
           >
-            {account.type ===
-            "Credit Card"
+            {isCreditCard
               ? "Outstanding Amount"
-              : "Available Balance"}
+              : isLoan
+                ? "Outstanding Loan Balance"
+                : "Available Balance"}
           </Text>
 
           <Text
@@ -461,6 +469,11 @@ const styles =
 
     accountType: {
       fontWeight: "600",
+    },
+
+    accountNumber: {
+      color: "#64748B",
+      marginTop: 2,
     },
 
     balanceSection: {
